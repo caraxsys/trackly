@@ -8,16 +8,28 @@ import {
 import { validateRequest } from '../../validation/validate.js';
 import { createPreferenceRepository } from '../preferences/preference.repository.js';
 import { createHabitController } from './habit.controller.js';
+import { createHabitCommandController } from './habit-command.controller.js';
+import { createHabitCommandRepository } from './habit-command.repository.js';
+import { createHabitCommandService } from './habit-command.service.js';
 import {
+  habitCreateBodySchema,
   habitCollectionDataSchema,
+  habitDeleteDataSchema,
   habitDetailDataSchema,
+  habitMutationDataSchema,
+  habitStateDataSchema,
+  habitUpdateBodySchema,
 } from './habit.openapi.js';
 import { createHabitRepository } from './habit.repository.js';
 import {
   habitCollectionQuerySchema,
+  createHabitBodySchema,
   habitParamsSchema,
+  updateHabitBodySchema,
+  type CreateHabitBody,
   type HabitCollectionRequestQuery,
   type HabitParams,
+  type UpdateHabitBody,
 } from './habit.schema.js';
 import { createHabitService } from './habit.service.js';
 
@@ -26,6 +38,15 @@ const service = createHabitService({
   preferenceRepository: createPreferenceRepository(database),
 });
 const controller = createHabitController(service);
+const commandController = createHabitCommandController(
+  createHabitCommandService(createHabitCommandRepository(database)),
+);
+
+const idParamsJsonSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: { id: { type: 'string', format: 'uuid' } },
+};
 
 export function habitRoutes(app: FastifyInstance) {
   app.get<{ Querystring: HabitCollectionRequestQuery }>(
@@ -105,4 +126,108 @@ export function habitRoutes(app: FastifyInstance) {
     },
     controller.detail,
   );
+
+  app.post<{ Body: CreateHabitBody }>(
+    '/habits',
+    {
+      preValidation: validateRequest({ body: createHabitBodySchema }),
+      schema: {
+        tags: ['habits'],
+        summary: 'Create a habit',
+        description:
+          'Creates an owned habit and its weekday schedule atomically. Daily schedules ignore weekdays.',
+        security: [{ cookieAuth: [] }],
+        body: habitCreateBodySchema,
+        response: {
+          201: successResponseJsonSchema(habitMutationDataSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          404: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    commandController.create,
+  );
+
+  app.patch<{ Body: UpdateHabitBody; Params: HabitParams }>(
+    '/habits/:id',
+    {
+      preValidation: validateRequest({
+        params: habitParamsSchema,
+        body: updateHabitBodySchema,
+      }),
+      schema: {
+        tags: ['habits'],
+        summary: 'Update a habit',
+        description:
+          'Partially updates an owned, non-deleted habit. Schedule replacement is transactional.',
+        security: [{ cookieAuth: [] }],
+        params: idParamsJsonSchema,
+        body: habitUpdateBodySchema,
+        response: {
+          200: successResponseJsonSchema(habitMutationDataSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          404: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    commandController.update,
+  );
+
+  app.delete<{ Params: HabitParams }>(
+    '/habits/:id',
+    {
+      preValidation: validateRequest({ params: habitParamsSchema }),
+      schema: {
+        tags: ['habits'],
+        summary: 'Soft delete a habit',
+        description:
+          'Sets deleted_at without physically deleting the habit or its schedule.',
+        security: [{ cookieAuth: [] }],
+        params: idParamsJsonSchema,
+        response: {
+          200: successResponseJsonSchema(habitDeleteDataSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          404: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    commandController.softDelete,
+  );
+
+  for (const [path, summary, handler] of [
+    ['/habits/:id/activate', 'Activate a habit', commandController.activate],
+    [
+      '/habits/:id/deactivate',
+      'Deactivate a habit',
+      commandController.deactivate,
+    ],
+  ] as const) {
+    app.post<{ Params: HabitParams }>(
+      path,
+      {
+        preValidation: validateRequest({ params: habitParamsSchema }),
+        schema: {
+          tags: ['habits'],
+          summary,
+          security: [{ cookieAuth: [] }],
+          params: idParamsJsonSchema,
+          response: {
+            200: successResponseJsonSchema(habitStateDataSchema),
+            400: errorResponseJsonSchema,
+            401: errorResponseJsonSchema,
+            404: errorResponseJsonSchema,
+            409: errorResponseJsonSchema,
+            500: errorResponseJsonSchema,
+          },
+        },
+      },
+      handler,
+    );
+  }
 }

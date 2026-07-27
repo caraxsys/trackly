@@ -124,6 +124,22 @@ Tests use Fastify injection and a deterministic readiness dependency. The final
 Docker validation separately verifies `/ready` against the real PostgreSQL
 container.
 
+## Habit command module
+
+Habit writes use a lightweight CQRS split alongside the existing read path:
+
+`HabitCommandController → HabitCommandService → HabitCommandRepository`
+
+The command service enforces aggregate rules and ownership-safe category
+validation. The repository contains all mutation SQL and uses Drizzle
+transactions for habit/schedule writes. The public command routes are
+`POST /api/v1/habits`, `PATCH` and `DELETE /api/v1/habits/:id`, plus the
+`activate` and `deactivate` subresources. All are session-protected, Zod
+validated, documented in OpenAPI, and normalized by the centralized error
+handler.
+
+See [`habits.md`](habits.md) for mutation contracts and schedule semantics.
+
 ## Authentication
 
 `src/auth/auth.ts` is the single Better Auth configuration. It uses the shared

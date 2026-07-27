@@ -1,7 +1,8 @@
 # Habit module
 
-Milestone 3.0 introduces the read-only Habit module. It exposes no create, edit,
-activation, deletion, ordering, or check-in mutations.
+Milestone 3.0 introduced Habit queries. Milestone 3.1A adds backend-only create,
+update, activation, deactivation, and soft-delete commands. Habit check-ins and
+frontend mutation controls remain out of scope.
 
 ## API and semantics
 
@@ -39,6 +40,40 @@ projections avoid N+1 queries; detail uses one bounded query.
 No migration was required. Existing indexes cover ownership, active state,
 schedule lookup, and check-ins. No speculative search index was added.
 
+## Mutation API
+
+All mutation routes require a Better Auth session and derive ownership from the
+authenticated user:
+
+- `POST /api/v1/habits`
+- `PATCH /api/v1/habits/:id`
+- `DELETE /api/v1/habits/:id`
+- `POST /api/v1/habits/:id/activate`
+- `POST /api/v1/habits/:id/deactivate`
+
+The existing query repository/service/controller path remains unchanged. Writes
+use a separate command controller, command service, and command repository.
+Controllers only authenticate and shape responses, the command service owns
+business rules, and the repository owns Drizzle SQL.
+
+Create and schedule-replacing updates use database transactions. Daily habits
+persist no schedule rows. Weekly and custom habits require at least one unique
+ISO weekday (`1` Monday through `7` Sunday), returned in ascending order. A
+frequency change replaces the schedule atomically.
+
+Names are trimmed and cannot be blank. Target counts must be positive, logical
+end dates cannot precede start dates, and optional categories must be
+non-deleted categories owned by the same user. Partial updates validate the
+resulting aggregate, including its date range and schedule.
+
+Delete sets `deleted_at` only. Schedule rows are retained, repeated deletion is
+indistinguishable from a missing habit, and normal reads continue to exclude
+deleted rows. Activating an active habit or deactivating an inactive habit
+returns `409 CONFLICT`. Missing, foreign, and deleted resources return the same
+sanitized `404 NOT_FOUND` contract.
+
+No schema change or migration was required for Milestone 3.1A.
+
 ## Frontend
 
 `/habits` and `/habits/[id]` are dynamic Server Components. Requests forward the
@@ -51,6 +86,7 @@ badge are responsive, themed, and read-only. Empty states distinguish Today,
 All, Inactive, and search. Loading, error, validation, and not-found states
 remain inside the app shell.
 
-Milestone 3.1 can add mutation services and explicit actions without changing
-these read contracts. Milestone 3.2 can add check-in commands while reusing the
-selected-date and Today projections.
+The frontend remains read-only in Milestone 3.1A. A later frontend milestone can
+add explicit mutation controls without changing these read contracts.
+Milestone 3.2 can add check-in commands while reusing the selected-date and
+Today projections.

@@ -10,6 +10,8 @@ import { createAuth, type Auth } from '../../src/auth/auth.js';
 import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 import { createGoalRepository } from '../../src/modules/goals/goal.repository.js';
 import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
+import { createHabitCommandRepository } from '../../src/modules/habits/habit-command.repository.js';
+import { createHabitCommandService } from '../../src/modules/habits/habit-command.service.js';
 import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
 import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
@@ -61,6 +63,10 @@ function habitService() {
     preferenceRepository: createPreferenceRepository(database),
     habitRepository: createHabitRepository(database),
   });
+}
+
+function habitCommandService() {
+  return createHabitCommandService(createHabitCommandRepository(database));
 }
 
 async function authRequest(
@@ -1141,5 +1147,202 @@ describe('core database domain schema', () => {
     expect(new Set(ids).size).toBe(40);
     expect(JSON.stringify(firstPage).length).toBeLessThan(100_000);
     expect(elapsed).toBeLessThan(3_000);
+  });
+
+  it('creates daily, weekly, and custom habits atomically', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const [category] = await database
+      .insert(categories)
+      .values({ userId, name: 'Owned category' })
+      .returning({ id: categories.id });
+    const [foreignCategory] = await database
+      .insert(categories)
+      .values({ userId: otherUserId, name: 'Foreign category' })
+      .returning({ id: categories.id });
+    if (!category || !foreignCategory)
+      throw new Error('Category fixture failed.');
+
+    const daily = await habitCommandService().create(userId, {
+      name: '  Daily habit  ',
+      categoryId: category.id,
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+      weekdays: [1, 2],
+    });
+    const weekly = await habitCommandService().create(userId, {
+      name: 'Weekly habit',
+      frequencyType: 'weekly',
+      startDate: '2026-01-01',
+      weekdays: [5, 1, 3],
+    });
+    const custom = await habitCommandService().create(userId, {
+      name: 'Custom habit',
+      frequencyType: 'custom',
+      startDate: '2026-01-01',
+      weekdays: [4, 2],
+      isActive: false,
+    });
+
+    expect(daily).toMatchObject({
+      name: 'Daily habit',
+      categoryId: category.id,
+      weekdays: [],
+      targetCount: 1,
+      isActive: true,
+    });
+    expect(weekly.weekdays).toEqual([1, 3, 5]);
+    expect(custom).toMatchObject({ weekdays: [2, 4], isActive: false });
+    expect(
+      await database.$count(
+        habitSchedules,
+        eq(habitSchedules.habitId, daily.id),
+      ),
+    ).toBe(0);
+
+    await expect(
+      habitCommandService().create(userId, {
+        name: 'Leaking category',
+        categoryId: foreignCategory.id,
+        frequencyType: 'daily',
+        startDate: '2026-01-01',
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('updates mutable fields and replaces schedules transactionally', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const created = await habitCommandService().create(userId, {
+      name: 'Original',
+      frequencyType: 'weekly',
+      startDate: '2026-01-01',
+      weekdays: [1, 3],
+    });
+
+    const partial = await habitCommandService().update(userId, created.id, {
+      name: '  Updated  ',
+    });
+    const custom = await habitCommandService().update(userId, created.id, {
+      frequencyType: 'custom',
+      weekdays: [6, 2],
+    });
+    const daily = await habitCommandService().update(userId, created.id, {
+      frequencyType: 'daily',
+    });
+
+    expect(partial).toMatchObject({ name: 'Updated', weekdays: [1, 3] });
+    expect(custom).toMatchObject({
+      frequencyType: 'custom',
+      weekdays: [2, 6],
+    });
+    expect(daily).toMatchObject({ frequencyType: 'daily', weekdays: [] });
+    expect(
+      await database.$count(
+        habitSchedules,
+        eq(habitSchedules.habitId, created.id),
+      ),
+    ).toBe(0);
+    await expect(
+      habitCommandService().update(otherUserId, created.id, { name: 'Nope' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    await database
+      .update(habits)
+      .set({ deletedAt: new Date() })
+      .where(eq(habits.id, created.id));
+    await expect(
+      habitCommandService().update(userId, created.id, { name: 'Nope' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('soft deletes once and removes the habit from public reads', async () => {
+    const userId = await createTestUser();
+    const created = await habitCommandService().create(userId, {
+      name: 'Delete me',
+      frequencyType: 'weekly',
+      startDate: '2026-01-01',
+      weekdays: [1],
+    });
+
+    await habitCommandService().softDelete(userId, created.id);
+    const collection = await habitService().list(
+      { userId },
+      {
+        view: 'all',
+        date: '2026-07-27',
+        search: '',
+        sort: 'position',
+        order: 'asc',
+        page: 1,
+        limit: 20,
+      },
+    );
+
+    expect(collection.items).toEqual([]);
+    expect(
+      await database.$count(
+        habitSchedules,
+        eq(habitSchedules.habitId, created.id),
+      ),
+    ).toBe(1);
+    await expect(
+      habitCommandService().softDelete(userId, created.id),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('activates and deactivates with conflict and ownership protection', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const created = await habitCommandService().create(userId, {
+      name: 'Stateful',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+      isActive: false,
+    });
+
+    expect(await habitCommandService().activate(userId, created.id)).toEqual({
+      id: created.id,
+      isActive: true,
+    });
+    await expect(
+      habitCommandService().activate(userId, created.id),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(await habitCommandService().deactivate(userId, created.id)).toEqual({
+      id: created.id,
+      isActive: false,
+    });
+    await expect(
+      habitCommandService().deactivate(userId, created.id),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      habitCommandService().activate(otherUserId, created.id),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('rolls back the habit insert when schedule persistence fails', async () => {
+    const userId = await createTestUser();
+    const repository = createHabitCommandRepository(database);
+
+    await expect(
+      repository.createAtomic(userId, {
+        name: 'Rollback habit',
+        description: null,
+        categoryId: null,
+        frequencyType: 'weekly',
+        targetCount: 1,
+        startDate: '2026-01-01',
+        endDate: null,
+        isActive: true,
+        weekdays: [8],
+      }),
+    ).rejects.toBeDefined();
+
+    expect(
+      await database.$count(
+        habits,
+        and(eq(habits.userId, userId), eq(habits.name, 'Rollback habit')),
+      ),
+    ).toBe(0);
   });
 });

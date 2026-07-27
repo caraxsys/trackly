@@ -58,7 +58,11 @@ export const errorHandlerPlugin = fastifyPlugin(
           );
       }
 
-      if ('code' in error && error.code === 'FST_ERR_CTP_INVALID_JSON_BODY') {
+      if (
+        'code' in error &&
+        (error.code === 'FST_ERR_CTP_INVALID_JSON_BODY' ||
+          error.code === 'FST_ERR_CTP_EMPTY_JSON_BODY')
+      ) {
         return reply
           .code(400)
           .send(
