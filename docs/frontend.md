@@ -165,5 +165,13 @@ Axios client, never an increment command.
 Today passes its resolved URL/local date, while detail passes
 `habit.today.date`. Inactive or unscheduled detail projections remain read-only.
 Pending controls are disabled and announced; success uses a status region, and
-safe conflict or request failures use an alert. Full Docker and browser
-validation remains reserved for Milestone 3.2C.
+safe conflict or request failures use an alert.
+
+Milestone 3.2C validated both integration points in a real browser against the
+Dockerized API and PostgreSQL database. Progress persisted after reload, Today
+aggregates refreshed from authoritative server data, zero reset removed the
+stored row, keyboard and focus behavior remained accessible, the narrow layout
+had no horizontal overflow, light/dark/system themes rendered correctly, and
+valid flows produced no console or hydration errors. Generic Habit collection
+rows intentionally remain check-in-free because they do not represent a
+specific logical date.

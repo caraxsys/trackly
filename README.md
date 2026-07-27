@@ -232,14 +232,16 @@ scheduling, ownership, and CQRS boundaries.
 
 The frontend provides `/habits/new` and `/habits/[id]/edit`, plus explicit
 Edit, Activate/Deactivate, and soft-delete actions on Habit details. The shared
-React Hook Form and Zod form remains check-in-free; Habit Check-in is reserved
-for a later frontend milestone.
+React Hook Form and Zod form remains focused on habit configuration. Today
+items and the Habit detail local-date projection use a reusable check-in
+control that sends absolute progress, toggles target-one habits, and provides
+bounded decrement/increment actions for larger targets.
 
 The authenticated `/today` route now renders the real dashboard server-side.
 It includes local-date greeting and navigation, daily progress, scheduled
 habits, task attention/completion groups, active goals, and polished
 loading/error/empty states. The dashboard is read-only until future mutation
-milestones.
+milestones other than Habit check-in.
 
 ## Docker notes
 

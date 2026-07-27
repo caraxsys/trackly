@@ -180,6 +180,26 @@ describe('HabitCheckInControl', () => {
     expect(screen.queryByText('network details')).not.toBeInTheDocument();
   });
 
+  it('shows one friendly unavailable alert after a not-found response', async () => {
+    const user = userEvent.setup();
+    setHabitCheckIn.mockRejectedValueOnce(
+      new ApiError({ code: 'NOT_FOUND', message: 'Internal', status: 404 }),
+    );
+    renderControl();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Mark Read complete' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This habit is no longer available.',
+    );
+    expect(
+      screen.getAllByText('This habit is no longer available.'),
+    ).toHaveLength(1);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('renders inactive and unscheduled habits as read-only', () => {
     const { rerender } = renderControl({ isActive: false });
     expect(screen.getByText('This habit is inactive.')).toBeVisible();

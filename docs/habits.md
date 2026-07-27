@@ -137,4 +137,14 @@ read-only.
 
 Milestone 3.2B intentionally adds no generic collection-row controls, optimistic
 cache, global state, increment API, streak, insight, achievement, or reminder
-behavior. Full Docker and browser validation remains Milestone 3.2C scope.
+behavior. Milestone 3.2C validated the complete Today and detail flows against
+the Dockerized frontend, backend, and PostgreSQL services. Browser checks
+covered persistence after reload, aggregate refresh, target-one reset,
+multi-target keyboard interaction, read-only schedule states, friendly stale
+404/409 feedback, ownership isolation, mobile overflow, focus visibility,
+theme modes, authentication redirects, and console/hydration cleanliness.
+
+Known limitations are deliberate: check-in controls only appear where a
+specific logical date is available; generic collection rows remain read-only,
+and no optimistic cache, offline queue, streak, insight, achievement, reminder,
+or analytics behavior is included.

@@ -105,7 +105,9 @@ export function HabitCheckInControl({
         <p className="text-sm font-medium tabular-nums">
           {progress.completedCount} / {targetCount} completed
         </p>
-        <p className="text-muted-foreground text-sm">{reason}</p>
+        {!isUnavailable && (
+          <p className="text-muted-foreground text-sm">{reason}</p>
+        )}
         {feedback?.kind === 'error' && (
           <p className="text-destructive text-sm" role="alert">
             {feedback.message}
