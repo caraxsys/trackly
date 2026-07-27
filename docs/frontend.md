@@ -1,0 +1,107 @@
+# Frontend foundation
+
+Trackly uses the Next.js App Router with Server Components by default.
+Interactive boundaries are limited to active navigation, theme control, and
+global error recovery.
+
+## Architecture
+
+- `src/app` contains route composition, metadata, and router state files.
+- `src/app/(app)` groups pages that share the application shell without adding
+  a URL segment.
+- `src/app/(auth)` contains the guest-only `/login` and `/register` shell.
+- `src/features/auth` contains validation and safe auth error mapping.
+- `src/components/layout` contains shell and page-composition primitives.
+- `src/components/navigation` contains responsive navigation behavior.
+- `src/components/feedback` contains loading, empty, and error states.
+- `src/components/theme` contains the persisted theme provider and control.
+- `src/config` contains static application configuration such as navigation.
+- `src/services` contains the central HTTP client and infrastructure services.
+- `src/types` contains shared transport types.
+- `src/features` is reserved for future business-specific modules.
+
+Shared components must remain free of business rules and business datasets.
+
+## Route map
+
+| Route       | Purpose                                      |
+| ----------- | -------------------------------------------- |
+| `/`         | Redirects to `/today`                        |
+| `/today`    | Main application entry point placeholder     |
+| `/habits`   | Future habits module placeholder             |
+| `/tasks`    | Future tasks module placeholder              |
+| `/goals`    | Future goals module placeholder              |
+| `/insights` | Future analytics/insights module placeholder |
+| `/settings` | Future preferences placeholder               |
+
+Application-shell routes are protected; authentication routes are guest-only.
+No business data is loaded in this milestone.
+
+## Application shell
+
+Desktop layouts use a persistent left sidebar and compact top bar. Small
+screens replace the sidebar with a five-item bottom navigation. Settings stays
+available through the top bar on mobile. Active links use `aria-current="page"`
+and all interactive elements retain visible keyboard focus.
+
+## Theme and design tokens
+
+Light, dark, and system modes are managed by `next-themes`. The selected mode
+persists in the browser and the root document suppresses only the expected
+theme-class hydration difference.
+
+Color, surface, border, focus, destructive, and radius tokens live in
+`src/styles/globals.css`. Both themes define deliberate values rather than
+applying a blanket color inversion.
+
+## Public environment
+
+The browser API origin is required:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_AUTH_URL=http://localhost:4000
+INTERNAL_API_URL=http://backend:4000
+```
+
+Public variables are validated with Zod in `src/lib/env.ts`. Missing or invalid
+URLs fail clearly during startup/build. Never place secrets in a
+`NEXT_PUBLIC_*` variable.
+
+Browser calls use the public localhost URL with credentials. Server Components
+forward the Cookie header to `INTERNAL_API_URL` and ask Better Auth for the
+session before rendering. This prevents protected-content flashes without
+middleware requests for static assets. Return destinations accept only
+same-origin relative paths.
+
+## API client
+
+Use the exported Axios instance in `src/services/http-client.ts`. It provides:
+
+- the validated API base URL;
+- a ten-second timeout;
+- JSON headers;
+- generated request IDs;
+- normalized backend errors through `ApiError`.
+
+Do not create another Axios instance. `systemService` contains the only current
+API methods (`/health` and `/ready`) and is intended for diagnostics and tests,
+not persistent UI status indicators.
+
+## Router states
+
+The root route provides loading, global error, not-found, title-template,
+description, viewport, and theme-color foundations. Public errors use friendly
+messages and do not render raw exceptions or stack traces.
+
+## Tests
+
+Run the deterministic Vitest and React Testing Library suite from the
+repository root:
+
+```bash
+pnpm test:frontend
+```
+
+The suite covers the root redirect, shell, expected navigation, active state,
+accessible theme control, API error normalization, and environment validation.

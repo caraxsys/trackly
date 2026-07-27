@@ -1,0 +1,2 @@
+-- Milestone 0.2 database foundation.
+-- Intentionally empty: business tables begin in a future milestone.

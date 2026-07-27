@@ -1,0 +1,27 @@
+{
+  "name": "trackly",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter ./frontend --filter ./backend dev",
+    "build": "corepack pnpm --recursive build",
+    "lint": "corepack pnpm --recursive lint",
+    "typecheck": "corepack pnpm --recursive typecheck",
+    "test:backend": "corepack pnpm --filter @trackly/backend test",
+    "test:frontend": "corepack pnpm --filter @trackly/frontend test",
+    "test:database": "corepack pnpm --filter @trackly/backend test:database",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "corepack pnpm --filter @trackly/backend db:generate",
+    "db:migrate": "corepack pnpm --filter @trackly/backend db:migrate",
+    "db:push": "corepack pnpm --filter @trackly/backend db:push",
+    "db:studio": "corepack pnpm --filter @trackly/backend db:studio",
+    "db:seed": "corepack pnpm --filter @trackly/backend db:seed",
+    "auth:schema": "corepack pnpm --filter @trackly/backend auth:schema"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.6.14"
+  }
+}

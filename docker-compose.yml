@@ -1,0 +1,101 @@
+name: trackly
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trackly}
+      POSTGRES_USER: ${POSTGRES_USER:-trackly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trackly}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-trackly} -d ${POSTGRES_DB:-trackly}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - trackly_internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    restart: unless-stopped
+    command: ['sh', '-c', 'pnpm install --frozen-lockfile && pnpm dev']
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-trackly}:${POSTGRES_PASSWORD:-trackly}@postgres:5432/${POSTGRES_DB:-trackly}}
+      BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
+      BACKEND_PORT: ${BACKEND_PORT:-4000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-development-only-secret-change-before-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:3000}
+      AUTH_SESSION_EXPIRES_IN: ${AUTH_SESSION_EXPIRES_IN:-604800}
+      AUTH_SESSION_UPDATE_AGE: ${AUTH_SESSION_UPDATE_AGE:-86400}
+    ports:
+      - '${BACKEND_PORT:-4000}:${BACKEND_PORT:-4000}'
+    volumes:
+      - ./backend:/app/backend
+      - backend_node_modules:/app/backend/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:' + process.env.BACKEND_PORT + '/ready').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - trackly_internal
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: development
+    restart: unless-stopped
+    command: ['sh', '-c', 'pnpm install --frozen-lockfile && pnpm dev']
+    environment:
+      NODE_ENV: development
+      FRONTEND_PORT: ${FRONTEND_PORT:-3000}
+      NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-4000}
+      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://localhost:4000}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:4000}
+    ports:
+      - '${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}'
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
+      - frontend_next:/app/frontend/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - trackly_internal
+
+volumes:
+  postgres_data:
+  backend_node_modules:
+  frontend_node_modules:
+  frontend_next:
+
+networks:
+  trackly_internal:
+    driver: bridge

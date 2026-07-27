@@ -1,0 +1,48 @@
+{
+  "name": "@trackly/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "cross-env NODE_ENV=test DATABASE_URL=postgresql://trackly:trackly@localhost:5432/trackly BETTER_AUTH_SECRET=test-only-auth-secret-at-least-32-characters vitest run",
+    "test:watch": "cross-env NODE_ENV=test DATABASE_URL=postgresql://trackly:trackly@localhost:5432/trackly BETTER_AUTH_SECRET=test-only-auth-secret-at-least-32-characters vitest",
+    "test:database": "cross-env DATABASE_ADMIN_URL=postgresql://trackly:trackly@localhost:5432/postgres DATABASE_URL=postgresql://trackly:trackly@localhost:5432/trackly BETTER_AUTH_SECRET=test-only-auth-secret-at-least-32-characters vitest run --config vitest.database.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/db/seed/index.ts",
+    "auth:schema": "auth generate --config src/auth/auth.ts --output src/db/schema/auth.ts --yes"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/swagger": "^9.5.1",
+    "@fastify/swagger-ui": "^5.2.3",
+    "better-auth": "^1.3.4",
+    "dotenv": "^17.2.1",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.4.0",
+    "fastify-plugin": "^5.0.1",
+    "pino-pretty": "^13.1.1",
+    "postgres": "^3.4.7",
+    "zod": "^4.0.14"
+  },
+  "devDependencies": {
+    "auth": "1.6.25",
+    "@eslint/js": "^9.32.0",
+    "@types/node": "^24.1.0",
+    "cross-env": "^10.0.0",
+    "drizzle-kit": "^0.31.4",
+    "eslint": "^9.32.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
+  }
+}

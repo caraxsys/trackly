@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.log
+.git
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+README.md
+docs
+
