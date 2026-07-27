@@ -39,3 +39,8 @@ complete ownership, relationship, date, deletion, and derived-value rules.
 `session`, `account`, and `verification` tables, indexes, and reviewed ownership
 constraints. Regenerate the canonical auth schema with `pnpm auth:schema`.
 Better Auth's output is the source of truth; never hand-author those tables.
+
+Milestone 2.0 requires no schema migration. Existing indexes cover ownership,
+active habit, task status/due time, goal status/target date, schedule, check-in,
+and goal-step query paths. Drizzle schema generation must continue to report no
+pending changes.

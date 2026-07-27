@@ -128,6 +128,12 @@ Do not persist:
 These values must be calculated from schedules, targets, check-ins, and goal
 steps.
 
+The Today query layer derives habit completion and goal progress at read time.
+It uses the authenticated user's timezone to translate a calendar date into
+timestamp boundaries while comparing PostgreSQL `date` columns as date-only
+values. Detailed query semantics are documented in
+[`today-query.md`](today-query.md).
+
 ## Entity relationship diagram
 
 ```mermaid

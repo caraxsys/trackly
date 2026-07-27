@@ -12,3 +12,8 @@ scope.
 Better Auth owns email/password authentication, database sessions, and
 `/api/auth/*`. Trackly-owned protected endpoints remain under `/api/v1` and use
 the shared server-side session helper.
+
+Authenticated domain reads use repository/service/controller modules.
+Repositories own Drizzle access, services own aggregation and interpretation,
+and controllers contain no SQL. The Today aggregation intentionally has a
+fixed query count rather than per-record data loading.

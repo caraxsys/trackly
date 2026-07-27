@@ -22,6 +22,8 @@ export const swaggerPlugin = fastifyPlugin(
           { name: 'system', description: 'Health and readiness endpoints' },
           { name: 'diagnostics', description: 'Non-business diagnostics' },
           { name: 'auth', description: 'Future authentication endpoints' },
+          { name: 'today', description: 'Authenticated Today aggregation' },
+          { name: 'categories', description: 'Category query endpoints' },
           { name: 'habits', description: 'Future habit endpoints' },
           { name: 'tasks', description: 'Future task endpoints' },
           { name: 'goals', description: 'Future goal endpoints' },

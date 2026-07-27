@@ -7,6 +7,12 @@ import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createAuth, type Auth } from '../../src/auth/auth.js';
+import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
+import { createGoalRepository } from '../../src/modules/goals/goal.repository.js';
+import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
+import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
+import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
+import { createTodayService } from '../../src/modules/today/today.service.js';
 import {
   categories,
   goals,
@@ -39,6 +45,15 @@ function createTestDatabase(client: Sql) {
 
 let database: ReturnType<typeof createTestDatabase>;
 let testAuth: Auth;
+
+function todayService() {
+  return createTodayService({
+    preferenceRepository: createPreferenceRepository(database),
+    habitRepository: createHabitRepository(database),
+    taskRepository: createTaskRepository(database),
+    goalRepository: createGoalRepository(database),
+  });
+}
 
 async function authRequest(
   path: string,
@@ -456,5 +471,401 @@ describe('core database domain schema', () => {
 
     expect(category).toBeDefined();
     expect(counts).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
+  it('aggregates Today data with strict ownership and documented semantics', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    await Promise.all([
+      database
+        .insert(userPreferences)
+        .values({ userId, timezone: 'Asia/Jakarta' }),
+      database
+        .insert(userPreferences)
+        .values({ userId: otherUserId, timezone: 'UTC' }),
+    ]);
+
+    const [category] = await database
+      .insert(categories)
+      .values({ userId, name: 'Health', color: '#00aa66' })
+      .returning({ id: categories.id });
+    const [deletedCategory] = await database
+      .insert(categories)
+      .values({
+        userId,
+        name: 'Archived',
+        deletedAt: new Date('2026-07-01T00:00:00Z'),
+      })
+      .returning({ id: categories.id });
+
+    if (!category || !deletedCategory) {
+      throw new Error('Test categories were not created.');
+    }
+
+    const insertedHabits = await database
+      .insert(habits)
+      .values([
+        {
+          userId,
+          categoryId: category.id,
+          name: 'Daily complete',
+          frequencyType: 'daily',
+          targetCount: 2,
+          startDate: '2026-07-01',
+          position: 2,
+        },
+        {
+          userId,
+          name: 'Weekly Monday',
+          frequencyType: 'weekly',
+          startDate: '2026-07-01',
+          position: 1,
+        },
+        {
+          userId,
+          name: 'Custom Monday',
+          frequencyType: 'custom',
+          startDate: '2026-07-01',
+          position: 3,
+        },
+        {
+          userId,
+          name: 'Outside range',
+          frequencyType: 'daily',
+          startDate: '2026-08-01',
+        },
+        {
+          userId,
+          name: 'Inactive',
+          frequencyType: 'daily',
+          startDate: '2026-07-01',
+          isActive: false,
+        },
+        {
+          userId,
+          name: 'Deleted habit',
+          frequencyType: 'daily',
+          startDate: '2026-07-01',
+          deletedAt: new Date('2026-07-20T00:00:00Z'),
+        },
+        {
+          userId: otherUserId,
+          name: 'Other user habit',
+          frequencyType: 'daily',
+          startDate: '2026-07-01',
+        },
+      ])
+      .returning({ id: habits.id, name: habits.name });
+    const byHabitName = new Map(
+      insertedHabits.map((habit) => [habit.name, habit.id]),
+    );
+    const dailyId = byHabitName.get('Daily complete');
+    const weeklyId = byHabitName.get('Weekly Monday');
+    const customId = byHabitName.get('Custom Monday');
+
+    if (!dailyId || !weeklyId || !customId) {
+      throw new Error('Scheduled test habits were not created.');
+    }
+
+    await database.insert(habitSchedules).values([
+      { habitId: weeklyId, dayOfWeek: 1 },
+      { habitId: customId, dayOfWeek: 1 },
+    ]);
+    await database.insert(habitCheckIns).values({
+      habitId: dailyId,
+      userId,
+      checkInDate: '2026-07-27',
+      completedCount: 2,
+    });
+
+    await database.insert(tasks).values([
+      {
+        userId,
+        title: 'Overdue high',
+        priority: 'high',
+        dueAt: new Date('2026-07-26T16:00:00Z'),
+      },
+      {
+        userId,
+        title: 'Overdue low',
+        priority: 'low',
+        dueAt: new Date('2026-07-26T16:00:00Z'),
+      },
+      {
+        userId,
+        title: 'Due today',
+        priority: 'medium',
+        dueAt: new Date('2026-07-26T17:30:00Z'),
+      },
+      {
+        userId,
+        title: 'Completed after local midnight',
+        status: 'completed',
+        dueAt: new Date('2026-07-26T16:30:00Z'),
+        completedAt: new Date('2026-07-26T18:00:00Z'),
+      },
+      {
+        userId,
+        title: 'Cancelled',
+        status: 'cancelled',
+        dueAt: new Date('2026-07-26T18:00:00Z'),
+      },
+      {
+        userId,
+        title: 'Deleted task',
+        dueAt: new Date('2026-07-26T18:00:00Z'),
+        deletedAt: new Date('2026-07-01T00:00:00Z'),
+      },
+      {
+        userId: otherUserId,
+        title: 'Other user task',
+        dueAt: new Date('2026-07-26T18:00:00Z'),
+      },
+    ]);
+
+    const insertedGoals = await database
+      .insert(goals)
+      .values([
+        {
+          userId,
+          categoryId: deletedCategory.id,
+          title: 'Sooner goal',
+          targetDate: '2026-08-01',
+          position: 2,
+        },
+        {
+          userId,
+          title: 'Later goal',
+          targetDate: '2026-09-01',
+          position: 1,
+        },
+        {
+          userId,
+          title: 'Zero-step goal',
+          position: 3,
+        },
+        {
+          userId,
+          title: 'Future goal',
+          startDate: '2026-08-01',
+        },
+        {
+          userId,
+          title: 'Paused goal',
+          status: 'paused',
+        },
+        {
+          userId,
+          title: 'Deleted goal',
+          deletedAt: new Date('2026-07-01T00:00:00Z'),
+        },
+        {
+          userId: otherUserId,
+          title: 'Other user goal',
+        },
+      ])
+      .returning({ id: goals.id, title: goals.title });
+    const soonerGoal = insertedGoals.find(
+      (goal) => goal.title === 'Sooner goal',
+    );
+
+    if (!soonerGoal) {
+      throw new Error('Test goal was not created.');
+    }
+
+    await database.insert(goalSteps).values([
+      { goalId: soonerGoal.id, title: 'Done', isCompleted: true },
+      { goalId: soonerGoal.id, title: 'Pending' },
+    ]);
+
+    const result = await todayService().getToday({
+      userId,
+      date: '2026-07-27',
+    });
+    const tuesdayResult = await todayService().getToday({
+      userId,
+      date: '2026-07-28',
+    });
+    const activeCategories =
+      await createCategoryRepository(database).listActiveByUser(userId);
+
+    expect(result.timezone).toBe('Asia/Jakarta');
+    expect(result.habits.map((habit) => habit.name)).toEqual([
+      'Weekly Monday',
+      'Daily complete',
+      'Custom Monday',
+    ]);
+    expect(result.habits.find((habit) => habit.id === dailyId)).toMatchObject({
+      completedCount: 2,
+      isCompleted: true,
+      category: { name: 'Health' },
+    });
+    expect(result.habits.find((habit) => habit.id === weeklyId)).toMatchObject({
+      completedCount: 0,
+      isCompleted: false,
+    });
+    expect(result.tasks.overdue.map((task) => task.title)).toEqual([
+      'Overdue high',
+      'Overdue low',
+    ]);
+    expect(result.tasks.dueToday.map((task) => task.title)).toEqual([
+      'Due today',
+    ]);
+    expect(result.tasks.completedToday.map((task) => task.title)).toEqual([
+      'Completed after local midnight',
+    ]);
+    expect(result.goals.map((goal) => goal.title)).toEqual([
+      'Sooner goal',
+      'Later goal',
+      'Zero-step goal',
+    ]);
+    expect(result.goals[0]).toMatchObject({
+      totalSteps: 2,
+      completedSteps: 1,
+      progressPercentage: 50,
+      category: null,
+    });
+    expect(result.goals[2]).toMatchObject({
+      totalSteps: 0,
+      completedSteps: 0,
+      progressPercentage: 0,
+    });
+    expect(result.summary).toEqual({
+      habitsTotal: 3,
+      habitsCompleted: 1,
+      tasksDueToday: 1,
+      tasksCompletedToday: 1,
+      overdueTasks: 2,
+      activeGoals: 3,
+      completedItems: 2,
+      totalItems: 7,
+      completionPercentage: 29,
+    });
+    expect(activeCategories.map((item) => item.name)).toEqual(['Health']);
+    expect(tuesdayResult.habits.map((habit) => habit.name)).toEqual([
+      'Daily complete',
+    ]);
+    expect(JSON.stringify(result)).not.toContain('Other user');
+  });
+
+  it('uses timezone-local default dates and returns a valid empty state', async () => {
+    const userId = await createTestUser();
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Asia/Jakarta' });
+
+    const result = await todayService().getToday({
+      userId,
+      now: new Date('2026-07-26T18:00:00Z'),
+    });
+
+    expect(result).toMatchObject({
+      date: '2026-07-27',
+      timezone: 'Asia/Jakarta',
+      habits: [],
+      tasks: { overdue: [], dueToday: [], completedToday: [] },
+      goals: [],
+      summary: {
+        completedItems: 0,
+        totalItems: 0,
+        completionPercentage: 0,
+      },
+    });
+  });
+
+  it('falls back to UTC for missing or invalid preferences', async () => {
+    const missingPreferenceUser = await createTestUser();
+    const invalidTimezoneUser = await createTestUser();
+    await database.insert(userPreferences).values({
+      userId: invalidTimezoneUser,
+      timezone: 'Invalid/Timezone',
+    });
+    let fallbackCount = 0;
+
+    const [missing, invalid] = await Promise.all([
+      todayService().getToday({
+        userId: missingPreferenceUser,
+        now: new Date('2026-07-26T23:30:00Z'),
+      }),
+      todayService().getToday({
+        userId: invalidTimezoneUser,
+        now: new Date('2026-07-26T23:30:00Z'),
+        onTimezoneFallback: () => {
+          fallbackCount += 1;
+        },
+      }),
+    ]);
+
+    expect(missing).toMatchObject({ timezone: 'UTC', date: '2026-07-26' });
+    expect(invalid).toMatchObject({ timezone: 'UTC', date: '2026-07-26' });
+    expect(fallbackCount).toBe(1);
+  });
+
+  it('keeps Today query cost bounded for a realistic fixture', async () => {
+    const userId = await createTestUser();
+    await database.insert(userPreferences).values({ userId, timezone: 'UTC' });
+
+    const fixtureHabits = await database
+      .insert(habits)
+      .values(
+        Array.from({ length: 50 }, (_, index) => ({
+          userId,
+          name: `Fixture habit ${index}`,
+          frequencyType: 'daily' as const,
+          startDate: '2026-01-01',
+          position: index,
+        })),
+      )
+      .returning({ id: habits.id });
+
+    await database.insert(habitCheckIns).values(
+      Array.from({ length: 200 }, (_, index) => ({
+        habitId: fixtureHabits[index % fixtureHabits.length]!.id,
+        userId,
+        checkInDate: `2026-06-${Math.floor(index / 50 + 1)
+          .toString()
+          .padStart(2, '0')}`,
+        completedCount: 1,
+      })),
+    );
+    await database.insert(tasks).values(
+      Array.from({ length: 100 }, (_, index) => ({
+        userId,
+        title: `Fixture task ${index}`,
+        dueAt: new Date(
+          `2026-07-27T${(index % 16).toString().padStart(2, '0')}:00:00Z`,
+        ),
+      })),
+    );
+    const fixtureGoals = await database
+      .insert(goals)
+      .values(
+        Array.from({ length: 20 }, (_, index) => ({
+          userId,
+          title: `Fixture goal ${index}`,
+          targetDate: '2026-12-31',
+        })),
+      )
+      .returning({ id: goals.id });
+    await database.insert(goalSteps).values(
+      Array.from({ length: 100 }, (_, index) => ({
+        goalId: fixtureGoals[index % fixtureGoals.length]!.id,
+        title: `Fixture step ${index}`,
+        isCompleted: index % 2 === 0,
+      })),
+    );
+
+    const startedAt = performance.now();
+    const result = await todayService().getToday({
+      userId,
+      date: '2026-07-27',
+    });
+    const elapsed = performance.now() - startedAt;
+
+    expect(result.habits).toHaveLength(50);
+    expect(result.tasks.dueToday).toHaveLength(100);
+    expect(result.goals).toHaveLength(20);
+    expect(elapsed).toBeLessThan(3_000);
+    expect(JSON.stringify(result).length).toBeLessThan(1_000_000);
   });
 });

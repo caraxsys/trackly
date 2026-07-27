@@ -197,6 +197,22 @@ See [`docs/frontend.md`](docs/frontend.md) for the route map, component
 architecture, theme system, API client conventions, and Docker browser/server
 URL behavior.
 
+## Backend query layer
+
+Authenticated read endpoints now include:
+
+- `GET /api/v1/today`
+- `GET /api/v1/today?date=YYYY-MM-DD`
+- `GET /api/v1/categories`
+
+Today returns real PostgreSQL habits, mutually exclusive task groups, active
+goals with derived progress, and a daily summary based on the user's stored
+timezone. The frontend includes only typed transport foundations; no dashboard
+UI or write endpoints are part of this milestone.
+
+See [`docs/today-query.md`](docs/today-query.md) for ownership, scheduling,
+timezone, grouping, summary, and performance rules.
+
 ## Docker notes
 
 Compose creates an internal bridge network for application traffic and stores

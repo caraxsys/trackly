@@ -123,6 +123,30 @@ describe('backend foundation', () => {
     });
   });
 
+  it('rejects unauthenticated Today and category reads', async () => {
+    const [today, categories] = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/v1/today' }),
+      app.inject({ method: 'GET', url: '/api/v1/categories' }),
+    ]);
+
+    expect(today.statusCode).toBe(401);
+    expect(categories.statusCode).toBe(401);
+  });
+
+  it('rejects malformed and impossible Today dates', async () => {
+    for (const date of ['2026-2-3', '2026-02-30', '2026-02-03T00:00:00Z']) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/today?date=${encodeURIComponent(date)}`,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+    }
+  });
+
   it('returns a valid incoming request ID in the response header', async () => {
     const response = await app.inject({
       method: 'GET',
