@@ -140,6 +140,13 @@ tasks, 20 goals, and 100 goal steps. Response construction remains a fixed
 number of queries and selects only response fields. No benchmark data is placed
 in seed files.
 
-The frontend has only a typed response contract and `todayService.getToday()`.
-Future dashboard widgets should consume that service rather than reproduce
-schedule, timezone, or summary logic.
+The frontend Today page consumes this response through a server-only service,
+forwards the authenticated cookie, and uses `no-store`. Presentation components
+do not reproduce schedule, grouping, or summary logic. The browser-facing typed
+service remains available for future interaction, but Milestone 2.1 performs no
+duplicate client fetch.
+
+Date navigation is URL-based. `/today` asks the backend for the current local
+date, while `/today?date=YYYY-MM-DD` renders the requested date and survives
+refresh or sharing. The UI formats PostgreSQL dates without timezone shifting
+and timestamps in the response timezone.

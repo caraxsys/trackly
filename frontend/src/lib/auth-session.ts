@@ -1,7 +1,10 @@
 import 'server-only';
 
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { z } from 'zod';
+
+import { getInternalApiUrl } from './server-environment';
 
 const sessionSchema = z.object({
   user: z.object({
@@ -17,21 +20,7 @@ const sessionSchema = z.object({
 
 export type AuthSession = z.infer<typeof sessionSchema>;
 
-function getInternalApiUrl() {
-  const value =
-    process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_AUTH_URL;
-  const result = z.url().safeParse(value);
-
-  if (!result.success) {
-    throw new Error(
-      'INTERNAL_API_URL or NEXT_PUBLIC_AUTH_URL must be a valid absolute URL.',
-    );
-  }
-
-  return result.data;
-}
-
-export async function getServerSession(): Promise<AuthSession | null> {
+async function loadServerSession(): Promise<AuthSession | null> {
   const cookieStore = await cookies();
 
   try {
@@ -55,3 +44,5 @@ export async function getServerSession(): Promise<AuthSession | null> {
     return null;
   }
 }
+
+export const getServerSession = cache(loadServerSession);
