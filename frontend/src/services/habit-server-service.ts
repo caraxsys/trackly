@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { getInternalApiUrl } from '@/lib/server-environment';
 import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 import type {
+  HabitCategory,
   HabitCollectionData,
   HabitCollectionParams,
   HabitDetail,
@@ -53,4 +54,8 @@ export function getServerHabits(params: HabitCollectionParams) {
 
 export function getServerHabit(id: string) {
   return requestHabit<HabitDetail>(`/api/v1/habits/${encodeURIComponent(id)}`);
+}
+
+export function getServerHabitCategories() {
+  return requestHabit<HabitCategory[]>('/api/v1/categories');
 }

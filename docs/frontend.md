@@ -135,3 +135,18 @@ pnpm test:frontend
 
 The suite covers the root redirect, shell, expected navigation, active state,
 accessible theme control, API error normalization, and environment validation.
+
+## Habit CRUD
+
+Habit create and edit pages use Server Components for authenticated habit and
+category loading, with a focused client boundary around `HabitForm`.
+`habit-mutation-service.ts` is the only browser mutation transport and reuses
+the configured Axios client. Form validation mirrors the backend date, target,
+name, category, frequency, and ISO-weekday contracts.
+
+Activation, deactivation, and soft deletion remain explicit lifecycle actions
+on the detail page rather than generic form edits. Pending controls are
+disabled, conflicts are presented safely, and successful writes refresh or
+redirect to authoritative server-rendered data. Dirty forms use
+`beforeunload` plus native Cancel confirmation; no global navigation blocker,
+autosave, optimistic state, or client cache is introduced.

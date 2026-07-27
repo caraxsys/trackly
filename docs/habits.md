@@ -86,7 +86,28 @@ badge are responsive, themed, and read-only. Empty states distinguish Today,
 All, Inactive, and search. Loading, error, validation, and not-found states
 remain inside the app shell.
 
-The frontend remains read-only in Milestone 3.1A. A later frontend milestone can
-add explicit mutation controls without changing these read contracts.
-Milestone 3.2 can add check-in commands while reusing the selected-date and
-Today projections.
+Milestone 3.1B adds `/habits/new` and `/habits/[id]/edit`. Both routes are
+dynamic Server Components that verify the session and load owned categories;
+edit also loads the current habit and uses the existing not-found behavior for
+missing, deleted, or foreign records.
+
+The reusable client-side `HabitForm` owns React Hook Form state, shared Zod
+validation, weekday interaction, pending state, backend field errors, and
+submission through the central Axios client. Daily frequency hides weekdays
+and submits an empty schedule. Weekly and custom schedules require unique,
+ascending ISO weekdays. Edit submissions omit `isActive` so they cannot
+overwrite a concurrent lifecycle transition.
+
+The detail page exposes Edit, Activate/Deactivate, and Delete actions.
+Lifecycle changes use their dedicated endpoints and accessible, focus-managed
+inline confirmation dialogs. Conflicts receive a safe refresh-oriented message.
+Delete explains soft deletion and redirects to the collection; there is no
+undo.
+
+Dirty forms register `beforeunload` protection for refresh and close. Cancel
+uses a native confirmation when dirty, then returns to the detail page for edit
+or the collection for create. Successful create and edit operations redirect to
+the detail page with accessible status feedback.
+
+Habit check-in remains intentionally absent. Milestone 3.2 can add check-in
+commands while reusing the selected-date and Today projections.

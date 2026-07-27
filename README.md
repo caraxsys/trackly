@@ -228,6 +228,11 @@ foreign, deleted, and missing resources use sanitized standard errors.
 See [`docs/habits.md`](docs/habits.md) for endpoint contracts, validation,
 scheduling, ownership, and CQRS boundaries.
 
+The frontend provides `/habits/new` and `/habits/[id]/edit`, plus explicit
+Edit, Activate/Deactivate, and soft-delete actions on Habit details. The shared
+React Hook Form and Zod form remains check-in-free; Habit Check-in is reserved
+for Milestone 3.2.
+
 The authenticated `/today` route now renders the real dashboard server-side.
 It includes local-date greeting and navigation, daily progress, scheduled
 habits, task attention/completion groups, active goals, and polished

@@ -11,6 +11,7 @@ export const corsPlugin = fastifyPlugin(
 
     await app.register(cors, {
       credentials: true,
+      methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       origin(origin, callback) {
         if (!origin || allowedOrigins.has(origin)) {
           callback(null, true);

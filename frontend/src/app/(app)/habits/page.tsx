@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -63,7 +64,15 @@ export default async function HabitsPage({
   return (
     <div className="space-y-8">
       <PageHeader
-        description="Review your routines and recurring activities without changing their setup."
+        actions={
+          <Link
+            className="bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold focus-visible:ring-2"
+            href="/habits/new"
+          >
+            <Plus aria-hidden="true" className="size-4" /> New habit
+          </Link>
+        }
+        description="Review and manage your routines and recurring activities."
         title="Habits"
       />
       <HabitControls
