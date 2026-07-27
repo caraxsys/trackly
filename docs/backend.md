@@ -133,3 +133,13 @@ caches one lookup per Fastify request, and exposes `requireSession()` and
 `requireUserId()`. Unauthenticated Trackly routes receive the centralized
 `UNAUTHORIZED` error. `GET /api/v1/auth/me` exposes only safe user fields and
 session expiry.
+
+## Authenticated query modules
+
+Read modules live under `src/modules`. Repositories own Drizzle queries,
+services interpret and aggregate results, controllers handle authentication
+and response envelopes, and routes own validation/OpenAPI metadata.
+
+The Today module performs one preferences query followed by three parallel
+repository queries. All reads are authenticated and user-scoped. See
+[`today-query.md`](today-query.md) for the stable contract and semantics.

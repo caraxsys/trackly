@@ -42,3 +42,10 @@
 - Keep `/api/auth/*` outside `/api/v1` because Better Auth owns that contract.
 - Never store session tokens in browser storage or expose authentication
   secrets to the frontend.
+- Scope every user-owned read with the authenticated user ID; never accept
+  ownership IDs from request input.
+- Calculate Today from the user's stored timezone, never the backend server
+  timezone.
+- Keep database queries in repositories, never in routes or controllers.
+- Exclude soft-deleted records from normal reads unless explicitly requested.
+- Use deterministic sorting with a stable final tie-breaker.

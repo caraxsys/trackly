@@ -6,6 +6,7 @@ import { normalizeApiError } from '@/services/api-error';
 export const httpClient = axios.create({
   baseURL: publicEnvironment.NEXT_PUBLIC_API_URL,
   timeout: 10_000,
+  withCredentials: true,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',

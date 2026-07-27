@@ -1,0 +1,152 @@
+const categoryProjectionSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      required: ['id', 'name', 'color', 'icon'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        name: { type: 'string' },
+        color: { type: ['string', 'null'] },
+        icon: { type: ['string', 'null'] },
+      },
+    },
+    { type: 'null' },
+  ],
+};
+
+const taskSchema = {
+  type: 'object',
+  required: [
+    'id',
+    'title',
+    'description',
+    'status',
+    'priority',
+    'dueAt',
+    'completedAt',
+    'category',
+    'position',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    title: { type: 'string' },
+    description: { type: ['string', 'null'] },
+    status: {
+      type: 'string',
+      enum: ['todo', 'in_progress', 'completed', 'cancelled'],
+    },
+    priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+    dueAt: { type: ['string', 'null'], format: 'date-time' },
+    completedAt: { type: ['string', 'null'], format: 'date-time' },
+    category: categoryProjectionSchema,
+    position: { type: 'integer' },
+  },
+};
+
+export const todayDataJsonSchema = {
+  type: 'object',
+  required: ['date', 'timezone', 'habits', 'tasks', 'goals', 'summary'],
+  properties: {
+    date: { type: 'string', format: 'date', example: '2026-07-27' },
+    timezone: { type: 'string', example: 'Asia/Jakarta' },
+    habits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'name',
+          'description',
+          'category',
+          'frequencyType',
+          'targetCount',
+          'completedCount',
+          'isCompleted',
+          'position',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          description: { type: ['string', 'null'] },
+          category: categoryProjectionSchema,
+          frequencyType: {
+            type: 'string',
+            enum: ['daily', 'weekly', 'custom'],
+          },
+          targetCount: { type: 'integer' },
+          completedCount: { type: 'integer' },
+          isCompleted: { type: 'boolean' },
+          position: { type: 'integer' },
+        },
+      },
+    },
+    tasks: {
+      type: 'object',
+      required: ['overdue', 'dueToday', 'completedToday'],
+      properties: {
+        overdue: { type: 'array', items: taskSchema },
+        dueToday: { type: 'array', items: taskSchema },
+        completedToday: { type: 'array', items: taskSchema },
+      },
+    },
+    goals: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'title',
+          'description',
+          'status',
+          'startDate',
+          'targetDate',
+          'coverImageUrl',
+          'position',
+          'category',
+          'totalSteps',
+          'completedSteps',
+          'progressPercentage',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          title: { type: 'string' },
+          description: { type: ['string', 'null'] },
+          status: { type: 'string', enum: ['active'] },
+          startDate: { type: ['string', 'null'], format: 'date' },
+          targetDate: { type: ['string', 'null'], format: 'date' },
+          coverImageUrl: { type: ['string', 'null'] },
+          position: { type: 'integer' },
+          category: categoryProjectionSchema,
+          totalSteps: { type: 'integer' },
+          completedSteps: { type: 'integer' },
+          progressPercentage: { type: 'integer', minimum: 0, maximum: 100 },
+        },
+      },
+    },
+    summary: {
+      type: 'object',
+      required: [
+        'habitsTotal',
+        'habitsCompleted',
+        'tasksDueToday',
+        'tasksCompletedToday',
+        'overdueTasks',
+        'activeGoals',
+        'completedItems',
+        'totalItems',
+        'completionPercentage',
+      ],
+      properties: {
+        habitsTotal: { type: 'integer' },
+        habitsCompleted: { type: 'integer' },
+        tasksDueToday: { type: 'integer' },
+        tasksCompletedToday: { type: 'integer' },
+        overdueTasks: { type: 'integer' },
+        activeGoals: { type: 'integer' },
+        completedItems: { type: 'integer' },
+        totalItems: { type: 'integer' },
+        completionPercentage: { type: 'integer' },
+      },
+    },
+  },
+};
