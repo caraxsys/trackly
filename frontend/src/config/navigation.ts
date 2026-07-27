@@ -20,6 +20,6 @@ export const navigationItems: NavigationItem[] = [
   { label: 'Habits', href: '/habits', icon: ListChecks, mobile: true },
   { label: 'Tasks', href: '/tasks', icon: CheckSquare2, mobile: true },
   { label: 'Goals', href: '/goals', icon: Target, mobile: true },
-  { label: 'Insights', href: '/insights', icon: BarChart3, mobile: true },
+  { label: 'Analytics', href: '/analytics', icon: BarChart3, mobile: true },
   { label: 'Settings', href: '/settings', icon: Settings, mobile: false },
 ];

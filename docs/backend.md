@@ -142,6 +142,19 @@ centralized error handler.
 
 See [`habits.md`](habits.md) for mutation contracts and schedule semantics.
 
+## Analytics query module
+
+The read-only CQRS path is
+`AnalyticsQueryController → AnalyticsQueryService → AnalyticsQueryRepository`.
+`GET /api/v1/analytics/summary` derives day, Monday–Sunday week, or calendar
+month Habit metrics. The repository performs a bounded user-scoped read with
+correlated schedule and check-in projections; the service owns timezone and
+date-range resolution, recurrence evaluation, capping, aggregation, and
+rounding. Three fixed queries avoid N+1 behavior; no derived analytics are
+persisted.
+
+See [`analytics.md`](analytics.md) for the endpoint contract and formulas.
+
 ## Authentication
 
 `src/auth/auth.ts` is the single Better Auth configuration. It uses the shared
