@@ -10,6 +10,7 @@ import { createAuth, type Auth } from '../../src/auth/auth.js';
 import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 import { createGoalRepository } from '../../src/modules/goals/goal.repository.js';
 import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
+import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
 import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
 import { createTodayService } from '../../src/modules/today/today.service.js';
@@ -52,6 +53,13 @@ function todayService() {
     habitRepository: createHabitRepository(database),
     taskRepository: createTaskRepository(database),
     goalRepository: createGoalRepository(database),
+  });
+}
+
+function habitService() {
+  return createHabitService({
+    preferenceRepository: createPreferenceRepository(database),
+    habitRepository: createHabitRepository(database),
   });
 }
 
@@ -867,5 +875,271 @@ describe('core database domain schema', () => {
     expect(result.goals).toHaveLength(20);
     expect(elapsed).toBeLessThan(3_000);
     expect(JSON.stringify(result).length).toBeLessThan(1_000_000);
+  });
+
+  it('filters, searches, sorts, paginates, and projects habit collections', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Asia/Jakarta' });
+    const [category] = await database
+      .insert(categories)
+      .values({ userId, name: 'Health' })
+      .returning({ id: categories.id });
+    const [foreignCategory] = await database
+      .insert(categories)
+      .values({ userId: otherUserId, name: 'Private' })
+      .returning({ id: categories.id });
+    if (!category || !foreignCategory)
+      throw new Error('Category fixture failed.');
+
+    const rows = await database
+      .insert(habits)
+      .values([
+        {
+          userId,
+          categoryId: category.id,
+          name: 'Alpha Daily',
+          description: 'Morning routine',
+          frequencyType: 'daily',
+          targetCount: 2,
+          startDate: '2026-07-27',
+          endDate: '2026-07-27',
+          position: 2,
+        },
+        {
+          userId,
+          name: 'beta weekly',
+          description: 'READING practice',
+          frequencyType: 'weekly',
+          startDate: '2026-01-01',
+          position: 1,
+        },
+        {
+          userId,
+          name: 'Custom Tuesday',
+          frequencyType: 'custom',
+          startDate: '2026-01-01',
+          position: 3,
+        },
+        {
+          userId,
+          name: 'Inactive',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+          isActive: false,
+        },
+        {
+          userId,
+          name: 'Deleted',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+          deletedAt: new Date(),
+        },
+        {
+          userId: otherUserId,
+          categoryId: foreignCategory.id,
+          name: 'Other owner',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+        },
+      ])
+      .returning({ id: habits.id, name: habits.name });
+    const idFor = (name: string) => rows.find((row) => row.name === name)?.id;
+    const dailyId = idFor('Alpha Daily');
+    const weeklyId = idFor('beta weekly');
+    const customId = idFor('Custom Tuesday');
+    if (!dailyId || !weeklyId || !customId)
+      throw new Error('Habit fixture failed.');
+
+    await database.insert(habitSchedules).values([
+      { habitId: weeklyId, dayOfWeek: 1 },
+      { habitId: weeklyId, dayOfWeek: 3 },
+      { habitId: customId, dayOfWeek: 2 },
+    ]);
+    await database.insert(habitCheckIns).values({
+      habitId: dailyId,
+      userId,
+      checkInDate: '2026-07-27',
+      completedCount: 2,
+    });
+
+    const base = {
+      userId,
+      date: '2026-07-27',
+      view: 'today' as const,
+      search: '',
+      sort: 'position' as const,
+      order: 'asc' as const,
+      page: 1,
+      limit: 20,
+    };
+    const [today, all, inactive, searched, secondPage] = await Promise.all([
+      habitService().list({ userId }, base),
+      habitService().list(
+        { userId },
+        { ...base, view: 'all', sort: 'name', order: 'desc' },
+      ),
+      habitService().list({ userId }, { ...base, view: 'inactive' }),
+      habitService().list(
+        { userId },
+        { ...base, view: 'all', search: '  reading  ' },
+      ),
+      habitService().list(
+        { userId },
+        { ...base, view: 'all', page: 2, limit: 2 },
+      ),
+    ]);
+
+    expect(today.items.map((item) => item.name)).toEqual([
+      'beta weekly',
+      'Alpha Daily',
+    ]);
+    expect(today.items.find((item) => item.id === dailyId)).toMatchObject({
+      category: { name: 'Health' },
+      selectedDate: {
+        isScheduled: true,
+        completedCount: 2,
+        isCompleted: true,
+      },
+    });
+    expect(
+      today.items.find((item) => item.id === weeklyId)?.schedule.weekdays,
+    ).toEqual([1, 3]);
+    expect(all.items.map((item) => item.name)).toEqual([
+      'Inactive',
+      'Custom Tuesday',
+      'beta weekly',
+      'Alpha Daily',
+    ]);
+    expect(inactive.items.map((item) => item.name)).toEqual(['Inactive']);
+    expect(searched.items.map((item) => item.name)).toEqual(['beta weekly']);
+    expect(secondPage.items).toHaveLength(2);
+    expect(secondPage.pagination).toMatchObject({
+      totalItems: 4,
+      totalPages: 2,
+      hasPreviousPage: true,
+      hasNextPage: false,
+    });
+    expect(JSON.stringify([today, all, inactive])).not.toContain('Other owner');
+    expect(JSON.stringify([today, all, inactive])).not.toContain('Private');
+  });
+
+  it('returns owned habit details and hides foreign or deleted habits', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Pacific/Kiritimati' });
+    const inserted = await database
+      .insert(habits)
+      .values([
+        {
+          userId,
+          name: 'Owned weekly',
+          frequencyType: 'weekly',
+          startDate: '2026-01-01',
+        },
+        {
+          userId,
+          name: 'Deleted owned',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+          deletedAt: new Date(),
+        },
+        {
+          userId: otherUserId,
+          name: 'Foreign',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+        },
+      ])
+      .returning({ id: habits.id, name: habits.name });
+    const ownedId = inserted.find((item) => item.name === 'Owned weekly')!.id;
+    await database
+      .insert(habitSchedules)
+      .values({ habitId: ownedId, dayOfWeek: 1 });
+
+    const detail = await habitService().detail(
+      { userId, now: new Date('2026-07-26T12:30:00Z') },
+      ownedId,
+    );
+
+    expect(detail).toMatchObject({
+      name: 'Owned weekly',
+      timezone: 'Pacific/Kiritimati',
+      today: { date: '2026-07-27', isScheduled: true, completedCount: 0 },
+      schedule: { weekdays: [1] },
+    });
+    await expect(
+      habitService().detail(
+        { userId },
+        inserted.find((item) => item.name === 'Foreign')!.id,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      habitService().detail(
+        { userId },
+        inserted.find((item) => item.name === 'Deleted owned')!.id,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('keeps a 100-habit collection bounded and deterministic', async () => {
+    const userId = await createTestUser();
+    await database.insert(userPreferences).values({ userId, timezone: 'UTC' });
+    await database.insert(habits).values(
+      Array.from({ length: 100 }, (_, index) => ({
+        userId,
+        name: `Performance habit ${index.toString().padStart(3, '0')}`,
+        frequencyType: 'daily' as const,
+        startDate: '2026-01-01',
+        position: Math.floor(index / 2),
+      })),
+    );
+
+    const startedAt = performance.now();
+    const [firstPage, secondPage] = await Promise.all([
+      habitService().list(
+        { userId },
+        {
+          view: 'all',
+          date: '2026-07-27',
+          search: '',
+          sort: 'position',
+          order: 'asc',
+          page: 1,
+          limit: 20,
+        },
+      ),
+      habitService().list(
+        { userId },
+        {
+          view: 'all',
+          date: '2026-07-27',
+          search: '',
+          sort: 'position',
+          order: 'asc',
+          page: 2,
+          limit: 20,
+        },
+      ),
+    ]);
+    const elapsed = performance.now() - startedAt;
+    const ids = [...firstPage.items, ...secondPage.items].map(
+      (habit) => habit.id,
+    );
+
+    expect(firstPage.pagination).toMatchObject({
+      totalItems: 100,
+      totalPages: 5,
+      hasNextPage: true,
+    });
+    expect(firstPage.items).toHaveLength(20);
+    expect(secondPage.items).toHaveLength(20);
+    expect(new Set(ids).size).toBe(40);
+    expect(JSON.stringify(firstPage).length).toBeLessThan(100_000);
+    expect(elapsed).toBeLessThan(3_000);
   });
 });

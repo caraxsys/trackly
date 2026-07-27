@@ -1,5 +1,9 @@
 # Backend foundation
 
+The read-only Habit module follows repository → service → controller → route
+separation. Its authenticated contracts and query semantics are documented in
+[`habits.md`](./habits.md).
+
 The Trackly backend is a Fastify application assembled in `src/app.ts`.
 `buildApp()` configures the application without opening a network port, which
 keeps startup separate from composition and allows deterministic injection

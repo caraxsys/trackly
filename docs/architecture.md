@@ -1,5 +1,10 @@
 # Architecture
 
+Habit reads preserve the established boundaries: repositories own queries,
+services own interpretation, controllers own authenticated identity, and routes
+own validation/OpenAPI. Authenticated collection/detail pages use Server
+Components and `no-store`.
+
 Trackly is organized as independently deployable frontend and backend
 applications in a pnpm workspace.
 

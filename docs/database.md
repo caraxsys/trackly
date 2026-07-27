@@ -1,5 +1,9 @@
 # Database foundation
 
+Milestone 3.0 required no schema migration. Existing habit ownership/active,
+schedule, and check-in indexes support the bounded queries. Search uses SQL
+`ILIKE`; no speculative search index was added.
+
 Trackly uses PostgreSQL through Drizzle ORM and the `postgres` driver. One
 shared Drizzle instance is exported by `backend/src/db/index.ts`. Fastify
 verifies the connection during startup and closes the driver gracefully during

@@ -1,5 +1,10 @@
 # Frontend foundation
 
+The Habits collection and detail pages are dynamic Server Components backed by
+uncached internal API requests. Shareable collection state lives in the URL.
+Reusable search, pagination, and status components form the initial common
+collection UI foundation. See [`habits.md`](./habits.md).
+
 Trackly uses the Next.js App Router with Server Components by default.
 Interactive boundaries are limited to active navigation, theme control, and
 global error recovery.
