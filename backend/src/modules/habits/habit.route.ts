@@ -14,6 +14,8 @@ import { createHabitCommandService } from './habit-command.service.js';
 import {
   habitCreateBodySchema,
   habitCollectionDataSchema,
+  habitCheckInBodyJsonSchema,
+  habitCheckInDataSchema,
   habitDeleteDataSchema,
   habitDetailDataSchema,
   habitMutationDataSchema,
@@ -23,11 +25,13 @@ import {
 import { createHabitRepository } from './habit.repository.js';
 import {
   habitCollectionQuerySchema,
+  habitCheckInBodySchema,
   createHabitBodySchema,
   habitParamsSchema,
   updateHabitBodySchema,
   type CreateHabitBody,
   type HabitCollectionRequestQuery,
+  type HabitCheckInBody,
   type HabitParams,
   type UpdateHabitBody,
 } from './habit.schema.js';
@@ -39,7 +43,10 @@ const service = createHabitService({
 });
 const controller = createHabitController(service);
 const commandController = createHabitCommandController(
-  createHabitCommandService(createHabitCommandRepository(database)),
+  createHabitCommandService(
+    createHabitCommandRepository(database),
+    createPreferenceRepository(database),
+  ),
 );
 
 const idParamsJsonSchema = {
@@ -198,6 +205,34 @@ export function habitRoutes(app: FastifyInstance) {
       },
     },
     commandController.softDelete,
+  );
+
+  app.post<{ Body: HabitCheckInBody; Params: HabitParams }>(
+    '/habits/:id/check-in',
+    {
+      preValidation: validateRequest({
+        params: habitParamsSchema,
+        body: habitCheckInBodySchema,
+      }),
+      schema: {
+        tags: ['habits'],
+        summary: 'Set habit progress for a calendar date',
+        description:
+          "Sets absolute progress for an active, owned habit on a scheduled date. Omitting date uses the authenticated user's local today. Zero removes the stored check-in.",
+        security: [{ cookieAuth: [] }],
+        params: idParamsJsonSchema,
+        body: habitCheckInBodyJsonSchema,
+        response: {
+          200: successResponseJsonSchema(habitCheckInDataSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          404: errorResponseJsonSchema,
+          409: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    commandController.checkIn,
   );
 
   for (const [path, summary, handler] of [

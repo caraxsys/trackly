@@ -4,8 +4,13 @@ import type { HabitCommandRepository } from '../src/modules/habits/habit-command
 import { createHabitCommandService } from '../src/modules/habits/habit-command.service.js';
 import {
   createHabitBodySchema,
+  habitCheckInBodySchema,
   updateHabitBodySchema,
 } from '../src/modules/habits/habit.schema.js';
+
+const preferenceRepository = {
+  findTimezone: vi.fn().mockResolvedValue('UTC'),
+};
 
 function repository(overrides: Partial<HabitCommandRepository> = {}) {
   const base: HabitCommandRepository = {
@@ -62,6 +67,9 @@ function repository(overrides: Partial<HabitCommandRepository> = {}) {
     setActive: vi
       .fn<HabitCommandRepository['setActive']>()
       .mockResolvedValue({ id: 'habit-id', isActive: false }),
+    setCheckIn: vi
+      .fn<HabitCommandRepository['setCheckIn']>()
+      .mockResolvedValue(undefined),
   };
 
   return { ...base, ...overrides };
@@ -70,7 +78,7 @@ function repository(overrides: Partial<HabitCommandRepository> = {}) {
 describe('HabitCommandService', () => {
   it('normalizes names, sorts schedules, and ignores daily weekdays', async () => {
     const repo = repository();
-    const service = createHabitCommandService(repo);
+    const service = createHabitCommandService(repo, preferenceRepository);
 
     const weekly = await service.create('user-id', {
       name: '  Read  ',
@@ -94,6 +102,7 @@ describe('HabitCommandService', () => {
       repository({
         categoryExists: vi.fn().mockResolvedValue(false),
       }),
+      preferenceRepository,
     );
     await expect(
       missingCategory.create('user-id', {
@@ -104,7 +113,10 @@ describe('HabitCommandService', () => {
       }),
     ).rejects.toMatchObject({ statusCode: 404 });
 
-    const service = createHabitCommandService(repository());
+    const service = createHabitCommandService(
+      repository(),
+      preferenceRepository,
+    );
     await expect(
       service.create('user-id', {
         name: 'Read',
@@ -162,5 +174,66 @@ describe('HabitCommandService', () => {
       }).success,
     ).toBe(false);
     expect(updateHabitBodySchema.safeParse({}).success).toBe(false);
+    expect(
+      habitCheckInBodySchema.safeParse({
+        date: '2026-02-30',
+        completedCount: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      habitCheckInBodySchema.safeParse({ completedCount: -1 }).success,
+    ).toBe(false);
+  });
+
+  it('resolves local today, enforces schedule and target, and derives completion', async () => {
+    const repo = repository({
+      findOwned: vi.fn().mockResolvedValue({
+        id: 'habit-id',
+        name: 'Existing',
+        description: null,
+        categoryId: null,
+        frequencyType: 'weekly',
+        targetCount: 2,
+        startDate: '2026-01-01',
+        endDate: null,
+        isActive: true,
+        weekdays: [1],
+      }),
+    });
+    const service = createHabitCommandService(repo, {
+      findTimezone: vi.fn().mockResolvedValue('Asia/Jakarta'),
+    });
+
+    await expect(
+      service.checkIn(
+        { userId: 'user-id', now: new Date('2026-07-26T18:00:00Z') },
+        'habit-id',
+        { completedCount: 2 },
+      ),
+    ).resolves.toEqual({
+      habitId: 'habit-id',
+      date: '2026-07-27',
+      completedCount: 2,
+      targetCount: 2,
+      isCompleted: true,
+    });
+    expect(repo.setCheckIn).toHaveBeenCalledWith(
+      'user-id',
+      'habit-id',
+      '2026-07-27',
+      2,
+    );
+    await expect(
+      service.checkIn({ userId: 'user-id' }, 'habit-id', {
+        date: '2026-07-28',
+        completedCount: 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      service.checkIn({ userId: 'user-id' }, 'habit-id', {
+        date: '2026-07-27',
+        completedCount: 3,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 });

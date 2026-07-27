@@ -2,9 +2,16 @@ import { CheckCircle2, Circle } from 'lucide-react';
 import Link from 'next/link';
 
 import { CategoryBadge } from './category-badge';
+import { HabitCheckInControl } from '@/components/habits/habit-check-in-control';
 import type { TodayHabit } from '@/types/today';
 
-export function HabitList({ habits }: { habits: TodayHabit[] }) {
+export function HabitList({
+  date,
+  habits,
+}: {
+  date: string;
+  habits: TodayHabit[];
+}) {
   return (
     <section
       aria-labelledby="habits-title"
@@ -49,9 +56,6 @@ export function HabitList({ habits }: { habits: TodayHabit[] }) {
                   <p className="text-foreground break-words font-medium">
                     {habit.name}
                   </p>
-                  <span className="text-muted-foreground shrink-0 text-sm tabular-nums">
-                    {habit.completedCount}/{habit.targetCount}
-                  </span>
                 </div>
                 {habit.description ? (
                   <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
@@ -63,6 +67,18 @@ export function HabitList({ habits }: { habits: TodayHabit[] }) {
                   <span className="sr-only">
                     {habit.isCompleted ? 'Completed' : 'Not completed'}
                   </span>
+                </div>
+                <div className="mt-3">
+                  <HabitCheckInControl
+                    date={date}
+                    habitId={habit.id}
+                    habitName={habit.name}
+                    initialCompletedCount={habit.completedCount}
+                    initialIsCompleted={habit.isCompleted}
+                    isActive
+                    isScheduled
+                    targetCount={habit.targetCount}
+                  />
                 </div>
               </div>
             </li>

@@ -1,8 +1,9 @@
 # Habit module
 
 Milestone 3.0 introduced Habit queries. Milestone 3.1A adds backend-only create,
-update, activation, deactivation, and soft-delete commands. Habit check-ins and
-frontend mutation controls remain out of scope.
+update, activation, deactivation, and soft-delete commands. Milestone 3.2A adds
+the backend check-in command, and Milestone 3.2B adds its focused frontend
+controls.
 
 ## API and semantics
 
@@ -109,5 +110,41 @@ uses a native confirmation when dirty, then returns to the detail page for edit
 or the collection for create. Successful create and edit operations redirect to
 the detail page with accessible status feedback.
 
-Habit check-in remains intentionally absent. Milestone 3.2 can add check-in
-commands while reusing the selected-date and Today projections.
+## Check-in API
+
+`POST /api/v1/habits/:id/check-in` sets absolute progress for one logical
+calendar date. The body requires an integer `completedCount` and accepts an
+optional `date`; an omitted date resolves to the authenticated user's local
+today with the existing safe UTC fallback.
+
+The habit must be owned, active, non-deleted, within its date range, and
+scheduled on the resolved ISO weekday. Counts range from zero through the
+habit's target. Positive counts use the existing unique habit/date constraint
+for an idempotent upsert. Zero deletes any stored row so zero-progress records
+are not retained. Completion remains derived from
+`completedCount >= targetCount`, and Today reads reflect writes immediately.
+
+Missing, foreign, and deleted habits share the sanitized 404 response. Inactive
+or unscheduled habits return a standardized 409 conflict.
+
+The reusable frontend `HabitCheckInControl` appears only on Today habit items
+and the habit detail local-date projection. Target-one habits toggle between
+absolute counts zero and one; larger targets use bounded decrement/increment
+buttons that send the resulting absolute value. Initial progress remains
+server-rendered, successful responses update visible state, and route refresh
+keeps server aggregates consistent. Inactive and unscheduled detail states are
+read-only.
+
+Milestone 3.2B intentionally adds no generic collection-row controls, optimistic
+cache, global state, increment API, streak, insight, achievement, or reminder
+behavior. Milestone 3.2C validated the complete Today and detail flows against
+the Dockerized frontend, backend, and PostgreSQL services. Browser checks
+covered persistence after reload, aggregate refresh, target-one reset,
+multi-target keyboard interaction, read-only schedule states, friendly stale
+404/409 feedback, ownership isolation, mobile overflow, focus visibility,
+theme modes, authentication redirects, and console/hydration cleanliness.
+
+Known limitations are deliberate: check-in controls only appear where a
+specific logical date is available; generic collection rows remain read-only,
+and no optimistic cache, offline queue, streak, insight, achievement, reminder,
+or analytics behavior is included.

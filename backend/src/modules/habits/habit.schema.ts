@@ -116,9 +116,15 @@ export const updateHabitBodySchema = z
   })
   .superRefine(validateHabitDates);
 
+export const habitCheckInBodySchema = z.object({
+  date: calendarDate.optional(),
+  completedCount: z.number().int().min(0),
+});
+
 export type HabitCollectionRequestQuery = z.infer<
   typeof habitCollectionQuerySchema
 >;
 export type HabitParams = z.infer<typeof habitParamsSchema>;
 export type CreateHabitBody = z.infer<typeof createHabitBodySchema>;
 export type UpdateHabitBody = z.infer<typeof updateHabitBodySchema>;
+export type HabitCheckInBody = z.infer<typeof habitCheckInBodySchema>;

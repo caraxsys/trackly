@@ -66,7 +66,10 @@ function habitService() {
 }
 
 function habitCommandService() {
-  return createHabitCommandService(createHabitCommandRepository(database));
+  return createHabitCommandService(
+    createHabitCommandRepository(database),
+    createPreferenceRepository(database),
+  );
 }
 
 async function authRequest(
@@ -1318,6 +1321,124 @@ describe('core database domain schema', () => {
     await expect(
       habitCommandService().activate(otherUserId, created.id),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('sets absolute habit progress with timezone, schedule, reset, and ownership rules', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Asia/Jakarta' });
+    const service = habitCommandService();
+    const habit = await service.create(userId, {
+      name: 'Check-in habit',
+      frequencyType: 'weekly',
+      targetCount: 2,
+      startDate: '2026-01-01',
+      weekdays: [1],
+    });
+    const inactive = await service.create(userId, {
+      name: 'Inactive check-in',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+      isActive: false,
+    });
+    const deleted = await service.create(userId, {
+      name: 'Deleted check-in',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+    });
+    await service.softDelete(userId, deleted.id);
+
+    const created = await service.checkIn(
+      { userId, now: new Date('2026-07-26T18:00:00Z') },
+      habit.id,
+      { completedCount: 1 },
+    );
+    expect(created).toEqual({
+      habitId: habit.id,
+      date: '2026-07-27',
+      completedCount: 1,
+      targetCount: 2,
+      isCompleted: false,
+    });
+
+    const completed = await service.checkIn({ userId }, habit.id, {
+      date: '2026-07-27',
+      completedCount: 2,
+    });
+    expect(completed.isCompleted).toBe(true);
+    await service.checkIn({ userId }, habit.id, {
+      date: '2026-07-27',
+      completedCount: 2,
+    });
+    expect(
+      await database.$count(
+        habitCheckIns,
+        and(
+          eq(habitCheckIns.habitId, habit.id),
+          eq(habitCheckIns.checkInDate, '2026-07-27'),
+        ),
+      ),
+    ).toBe(1);
+
+    const today = await todayService().getToday({
+      userId,
+      date: '2026-07-27',
+    });
+    expect(today.habits.find((item) => item.id === habit.id)).toMatchObject({
+      completedCount: 2,
+      targetCount: 2,
+      isCompleted: true,
+    });
+    expect(JSON.stringify(today)).not.toContain(otherUserId);
+
+    const reset = await service.checkIn({ userId }, habit.id, {
+      date: '2026-07-27',
+      completedCount: 0,
+    });
+    expect(reset).toMatchObject({ completedCount: 0, isCompleted: false });
+    await service.checkIn({ userId }, habit.id, {
+      date: '2026-07-27',
+      completedCount: 0,
+    });
+    expect(
+      await database.$count(habitCheckIns, eq(habitCheckIns.habitId, habit.id)),
+    ).toBe(0);
+
+    await expect(
+      service.checkIn({ userId }, habit.id, {
+        date: '2026-07-27',
+        completedCount: 3,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      service.checkIn({ userId }, inactive.id, {
+        date: '2026-07-27',
+        completedCount: 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      service.checkIn({ userId }, habit.id, {
+        date: '2026-07-28',
+        completedCount: 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    for (const inaccessibleId of [
+      habit.id,
+      deleted.id,
+      '00000000-0000-4000-8000-000000000000',
+    ]) {
+      await expect(
+        service.checkIn(
+          {
+            userId: inaccessibleId === habit.id ? otherUserId : userId,
+          },
+          inaccessibleId,
+          { date: '2026-07-27', completedCount: 1 },
+        ),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    }
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {
