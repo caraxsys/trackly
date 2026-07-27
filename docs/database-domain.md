@@ -1,5 +1,9 @@
 # Database domain design
 
+Public Habit reads exclude soft-deleted rows and scope every base row, check-in,
+and category projection by the authenticated user. Schedule and completion
+values are derived rather than persisted.
+
 Milestone 1.0 connects Trackly's application-owned PostgreSQL model to Better
 Auth. It adds no seed users, business behavior, or derived analytics.
 

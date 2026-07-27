@@ -5,6 +5,10 @@ tracking, task management, goal tracking, and analytics. This repository
 currently contains the production-oriented foundation and secure
 email/password authentication. Product modules remain intentionally unimplemented.
 
+The read-only Habit foundation provides authenticated list and detail pages at
+`/habits`, with URL-based views, dates, search, sorting, and pagination. See
+[`docs/habits.md`](docs/habits.md).
+
 ## Tech stack
 
 - Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS v4, shadcn/ui-ready

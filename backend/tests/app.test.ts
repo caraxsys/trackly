@@ -123,6 +123,47 @@ describe('backend foundation', () => {
     });
   });
 
+  it('rejects unauthenticated habit collection and detail requests', async () => {
+    const [collection, detail] = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/v1/habits' }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000',
+      }),
+    ]);
+
+    expect(collection.statusCode).toBe(401);
+    expect(detail.statusCode).toBe(401);
+    expect(collection.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+  });
+
+  it('validates habit collection query parameters and detail UUIDs', async () => {
+    const invalidQueries = await Promise.all(
+      [
+        'date=2026-02-30',
+        'view=deleted',
+        'page=0',
+        'limit=101',
+        'sort=unknown',
+        'order=sideways',
+      ].map((query) =>
+        app.inject({ method: 'GET', url: `/api/v1/habits?${query}` }),
+      ),
+    );
+    const invalidId = await app.inject({
+      method: 'GET',
+      url: '/api/v1/habits/not-a-uuid',
+    });
+
+    expect(
+      invalidQueries.every((response) => response.statusCode === 400),
+    ).toBe(true);
+    expect(invalidId.statusCode).toBe(400);
+  });
+
   it('rejects unauthenticated Today and category reads', async () => {
     const [today, categories] = await Promise.all([
       app.inject({ method: 'GET', url: '/api/v1/today' }),

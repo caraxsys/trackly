@@ -1,0 +1,56 @@
+# Habit module
+
+Milestone 3.0 introduces the read-only Habit module. It exposes no create, edit,
+activation, deletion, ordering, or check-in mutations.
+
+## API and semantics
+
+- `GET /api/v1/habits` returns an authenticated, user-scoped, paginated
+  collection.
+- `GET /api/v1/habits/:id` returns an authenticated, user-scoped detail.
+
+Collection parameters are `view`, `date`, `search`, `sort`, `order`, `page`, and
+`limit`. Defaults are `today`, the user's local date, empty search, `position`,
+`asc`, page `1`, and limit `20`; maximum limit is `100`.
+
+`today` applies active date-range and weekday scheduling. `all` includes active
+and inactive non-deleted habits. `inactive` includes only inactive,
+non-deleted habits. All views calculate the selected-date completion projection.
+Soft-deleted and unowned records are always excluded.
+
+Search is trimmed and runs case-insensitively against name and description in
+PostgreSQL. Ordering is deterministic with explicit creation-time and/or ID
+tie-breakers. Pagination and totals apply to the fully filtered SQL result.
+Out-of-range pages return a valid empty collection.
+
+## Scheduling, dates, and queries
+
+Logical dates use PostgreSQL `date` values and never pass through timestamp
+conversion. The module reuses the Today timezone/date utilities. Missing or
+invalid preferences resolve to UTC; invalid stored timezones are logged safely.
+ISO weekdays use Monday `1` through Sunday `7`. Completion is derived as
+`completed_count >= target_count`.
+
+Repositories own Drizzle queries; services resolve date/timezone and map
+semantics; controllers derive Better Auth identity; routes own Zod validation
+and OpenAPI. Collection uses one item query and one count query. Grouped schedule
+projections avoid N+1 queries; detail uses one bounded query.
+
+No migration was required. Existing indexes cover ownership, active state,
+schedule lookup, and check-ins. No speculative search index was added.
+
+## Frontend
+
+`/habits` and `/habits/[id]` are dynamic Server Components. Requests forward the
+HTTP-only session cookie internally and use `cache: no-store`. View, date,
+search, sort, order, and page live in shareable URL parameters. Native GET forms
+handle search/sorting; semantic links handle views, dates, and pagination.
+
+The vertical list, detail layout, common search input, pagination, and status
+badge are responsive, themed, and read-only. Empty states distinguish Today,
+All, Inactive, and search. Loading, error, validation, and not-found states
+remain inside the app shell.
+
+Milestone 3.1 can add mutation services and explicit actions without changing
+these read contracts. Milestone 3.2 can add check-in commands while reusing the
+selected-date and Today projections.

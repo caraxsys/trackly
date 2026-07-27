@@ -56,3 +56,12 @@
 - Do not expose mutation controls before the corresponding APIs exist.
 - Format date-only values as calendar dates and timestamps in their documented
   user timezone.
+- Keep shareable collection state in URL query parameters.
+- Scope every public user-owned read by the authenticated user ID.
+- Exclude soft-deleted records from public reads by default.
+- Make every list ordering deterministic with explicit tie-breakers.
+- Keep Server Components as the default for authenticated collection pages.
+- Never use shared static caching for user-specific responses.
+- Never interpret date-only fields as timestamps.
+- Do not show mutation affordances before their APIs exist.
+- Extract common components only after actual reuse is identified.

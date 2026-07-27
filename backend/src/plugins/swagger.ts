@@ -18,13 +18,27 @@ export const swaggerPlugin = fastifyPlugin(
             description: 'Local development',
           },
         ],
+        components: {
+          securitySchemes: {
+            cookieAuth: {
+              type: 'apiKey',
+              in: 'cookie',
+              name: 'better-auth.session_token',
+              description:
+                'Better Auth session cookie. Obtain it through the authentication endpoints.',
+            },
+          },
+        },
         tags: [
           { name: 'system', description: 'Health and readiness endpoints' },
           { name: 'diagnostics', description: 'Non-business diagnostics' },
           { name: 'auth', description: 'Future authentication endpoints' },
           { name: 'today', description: 'Authenticated Today aggregation' },
           { name: 'categories', description: 'Category query endpoints' },
-          { name: 'habits', description: 'Future habit endpoints' },
+          {
+            name: 'habits',
+            description: 'Authenticated, read-only habit endpoints',
+          },
           { name: 'tasks', description: 'Future task endpoints' },
           { name: 'goals', description: 'Future goal endpoints' },
           { name: 'analytics', description: 'Future analytics endpoints' },
