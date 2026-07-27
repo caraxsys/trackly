@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { HabitControls } from '@/components/habits/habit-controls';
 import { HabitDetail } from '@/components/habits/habit-detail';
@@ -10,6 +10,14 @@ import type {
   HabitDetail as HabitDetailData,
   HabitListItem,
 } from '@/types/habit';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 const daily: HabitListItem = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -116,6 +124,14 @@ describe('habit detail UI', () => {
     expect(screen.getByText('No description provided.')).toBeInTheDocument();
     expect(screen.getByText('Scheduled')).toBeInTheDocument();
     expect(screen.getByText('2 of 2 completed')).toBeInTheDocument();
-    expect(screen.queryByText(/edit|delete|check in/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      `/habits/${detail.id}/edit`,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Deactivate' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.queryByText(/check in/i)).not.toBeInTheDocument();
   });
 });

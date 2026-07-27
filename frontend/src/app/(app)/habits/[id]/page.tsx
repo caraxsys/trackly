@@ -13,8 +13,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function HabitDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ success?: string }>;
 }) {
   const session = await getServerSession();
   if (!session) redirect('/login');
@@ -37,5 +39,13 @@ export default async function HabitDetailPage({
     throw error;
   }
 
-  return <HabitDetail habit={habit} timezone={habit.timezone} />;
+  const successValue = (await searchParams).success;
+  const success =
+    successValue === 'created' || successValue === 'updated'
+      ? successValue
+      : undefined;
+
+  return (
+    <HabitDetail habit={habit} success={success} timezone={habit.timezone} />
+  );
 }

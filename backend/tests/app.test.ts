@@ -286,4 +286,22 @@ describe('backend foundation', () => {
 
     expect(response.headers['x-request-id']).toBe('test-request-123');
   });
+
+  it('allows browser preflights for habit mutation methods', async () => {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/habits/00000000-0000-4000-8000-000000000000',
+      headers: {
+        origin: 'http://localhost:3000',
+        'access-control-request-method': 'PATCH',
+        'access-control-request-headers': 'content-type,x-request-id',
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers['access-control-allow-methods']).toContain('PATCH');
+    expect(response.headers['access-control-allow-methods']).toContain(
+      'DELETE',
+    );
+  });
 });

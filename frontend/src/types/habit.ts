@@ -67,3 +67,32 @@ export interface HabitCollectionParams {
   order?: string;
   page?: string;
 }
+
+export interface HabitFormValues {
+  name: string;
+  description: string;
+  categoryId: string;
+  frequencyType: HabitFrequency;
+  targetCount: number;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  isActive: boolean;
+}
+
+export interface HabitMutationPayload {
+  name: string;
+  description: string | null;
+  categoryId: string | null;
+  frequencyType: HabitFrequency;
+  targetCount: number;
+  startDate: string;
+  endDate: string | null;
+  weekdays: number[];
+  isActive?: boolean;
+}
+
+export interface HabitMutationResult extends HabitMutationPayload {
+  id: string;
+  isActive: boolean;
+}

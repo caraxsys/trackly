@@ -1,7 +1,8 @@
-import { ArrowLeft, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 import { StatusBadge } from '@/components/common/status-badge';
+import { HabitLifecycleActions } from '@/components/habits/habit-lifecycle-actions';
 import { CategoryBadge } from '@/components/today/category-badge';
 import {
   formatDateRange,
@@ -15,9 +16,11 @@ import type { HabitDetail as HabitDetailData } from '@/types/habit';
 export function HabitDetail({
   habit,
   timezone,
+  success,
 }: {
   habit: HabitDetailData;
   timezone: string;
+  success?: 'created' | 'updated';
 }) {
   const fields = [
     ['Frequency', formatSchedule(habit.frequencyType, habit.schedule.weekdays)],
@@ -29,13 +32,21 @@ export function HabitDetail({
 
   return (
     <div className="space-y-6">
+      {success && (
+        <p
+          className="border-primary/30 bg-primary-soft rounded-lg border px-4 py-3 text-sm font-medium"
+          role="status"
+        >
+          Habit {success} successfully.
+        </p>
+      )}
       <Link
         className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-sm text-sm font-medium focus-visible:ring-2"
         href="/habits"
       >
         <ArrowLeft aria-hidden="true" className="size-4" /> Back to habits
       </Link>
-      <header className="space-y-3">
+      <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">
             {habit.name}
@@ -54,6 +65,15 @@ export function HabitDetail({
             No description provided.
           </p>
         )}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            className="bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold focus-visible:ring-2"
+            href={`/habits/${habit.id}/edit`}
+          >
+            <Pencil aria-hidden="true" className="size-4" /> Edit
+          </Link>
+          <HabitLifecycleActions habitId={habit.id} isActive={habit.isActive} />
+        </div>
       </header>
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <section
