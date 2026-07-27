@@ -39,7 +39,7 @@ export function TodayDashboard({
       ) : (
         <>
           <div className="grid gap-6 xl:grid-cols-2">
-            <HabitList habits={data.habits} />
+            <HabitList date={data.date} habits={data.habits} />
             <TaskSections tasks={data.tasks} timezone={data.timezone} />
           </div>
           <GoalList goals={data.goals} />

@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 import { StatusBadge } from '@/components/common/status-badge';
+import { HabitCheckInControl } from '@/components/habits/habit-check-in-control';
 import { HabitLifecycleActions } from '@/components/habits/habit-lifecycle-actions';
 import { CategoryBadge } from '@/components/today/category-badge';
 import {
@@ -108,14 +109,18 @@ export function HabitDetail({
           <p className="mt-5 text-2xl font-semibold">
             {habit.today.isScheduled ? 'Scheduled' : 'Not scheduled'}
           </p>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {habit.today.completedCount} of {habit.targetCount} completed
-          </p>
-          <p className="mt-4 text-sm font-medium">
-            {habit.today.isCompleted
-              ? 'Target completed'
-              : 'Target not completed'}
-          </p>
+          <div className="mt-4">
+            <HabitCheckInControl
+              date={habit.today.date}
+              habitId={habit.id}
+              habitName={habit.name}
+              initialCompletedCount={habit.today.completedCount}
+              initialIsCompleted={habit.today.isCompleted}
+              isActive={habit.isActive}
+              isScheduled={habit.today.isScheduled}
+              targetCount={habit.targetCount}
+            />
+          </div>
         </section>
       </div>
     </div>

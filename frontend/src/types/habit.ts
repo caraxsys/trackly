@@ -96,3 +96,11 @@ export interface HabitMutationResult extends HabitMutationPayload {
   id: string;
   isActive: boolean;
 }
+
+export interface HabitCheckInResult {
+  habitId: string;
+  date: string;
+  completedCount: number;
+  targetCount: number;
+  isCompleted: boolean;
+}

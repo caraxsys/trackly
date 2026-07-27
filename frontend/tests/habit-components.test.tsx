@@ -123,7 +123,9 @@ describe('habit detail UI', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('No description provided.')).toBeInTheDocument();
     expect(screen.getByText('Scheduled')).toBeInTheDocument();
-    expect(screen.getByText('2 of 2 completed')).toBeInTheDocument();
+    expect(
+      screen.getByText('2 / 2 completed — target complete'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
       'href',
       `/habits/${detail.id}/edit`,
@@ -132,6 +134,15 @@ describe('habit detail UI', () => {
       screen.getByRole('button', { name: 'Deactivate' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
-    expect(screen.queryByText(/check in/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Decrease Morning water progress',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Increase Morning water progress',
+      }),
+    ).toBeDisabled();
   });
 });

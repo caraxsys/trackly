@@ -1,8 +1,12 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { TodayDashboard } from '@/components/today/today-dashboard';
 import type { TodayResponseData } from '@/types/today';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const emptyData: TodayResponseData = {
   date: '2026-07-27',
@@ -172,7 +176,17 @@ describe('Today dashboard', () => {
     expect(screen.getByText('40%')).toBeVisible();
     expect(screen.getByText('2 of 5 items completed')).toBeVisible();
     expect(screen.getByText('Read twenty pages')).toBeVisible();
-    expect(screen.getByText('2/2')).toBeVisible();
+    expect(screen.getByText('2 / 2 completed — target complete')).toBeVisible();
+    expect(
+      screen.getByRole('button', {
+        name: 'Decrease Read twenty pages progress',
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', {
+        name: 'Increase Read twenty pages progress',
+      }),
+    ).toBeDisabled();
     expect(screen.getByText('Submit report')).toBeVisible();
     expect(screen.getByText('High priority')).toBeVisible();
     expect(screen.getByText('Review notes')).toBeVisible();
@@ -186,7 +200,7 @@ describe('Today dashboard', () => {
     expect(screen.queryByText('undefined')).not.toBeInTheDocument();
   });
 
-  it('renders shareable date navigation without mutation controls', () => {
+  it('renders shareable date navigation with date-specific habit controls', () => {
     render(
       <TodayDashboard
         data={populatedData}
@@ -209,9 +223,8 @@ describe('Today dashboard', () => {
       'href',
       '/today',
     );
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: /add|complete|delete/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole('button', { name: 'Mark Walk complete' }),
+    ).toBeVisible();
   });
 });

@@ -119,10 +119,9 @@ selection happens only on the server, preventing clock-based hydration
 differences.
 
 The route has dashboard-shaped loading skeletons, a retryable route error, and
-a friendly invalid-date state. All content is read-only: no checkbox, quick-add,
-completion, editing, or deletion controls are rendered before mutation APIs
-exist. Responsive layout uses one column on mobile and two primary columns at
-wide desktop sizes.
+a friendly invalid-date state. Scheduled habit items render the focused
+`HabitCheckInControl`; tasks and goals remain read-only. Responsive layout uses
+one column on mobile and two primary columns at wide desktop sizes.
 
 ## Tests
 
@@ -150,3 +149,21 @@ disabled, conflicts are presented safely, and successful writes refresh or
 redirect to authoritative server-rendered data. Dirty forms use
 `beforeunload` plus native Cancel confirmation; no global navigation blocker,
 autosave, optimistic state, or client cache is introduced.
+
+## Habit check-in
+
+`HabitCheckInControl` is a small Client Component embedded in server-rendered
+Today habit items and the habit detail date projection. Initial count and
+completion state come from the server; successful mutations update the visible
+projection and refresh the route so aggregate server data follows.
+
+Target-one habits expose a complete/reset action. Larger targets expose bounded
+decrement and increment actions with textual `completed / target` progress.
+Every interaction sends the final absolute `completedCount` through the central
+Axios client, never an increment command.
+
+Today passes its resolved URL/local date, while detail passes
+`habit.today.date`. Inactive or unscheduled detail projections remain read-only.
+Pending controls are disabled and announced; success uses a status region, and
+safe conflict or request failures use an alert. Full Docker and browser
+validation remains reserved for Milestone 3.2C.

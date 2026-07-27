@@ -2,7 +2,8 @@
 
 Milestone 3.0 introduced Habit queries. Milestone 3.1A adds backend-only create,
 update, activation, deactivation, and soft-delete commands. Milestone 3.2A adds
-the backend check-in command. Check-in frontend controls remain out of scope.
+the backend check-in command, and Milestone 3.2B adds its focused frontend
+controls.
 
 ## API and semantics
 
@@ -124,6 +125,16 @@ are not retained. Completion remains derived from
 `completedCount >= targetCount`, and Today reads reflect writes immediately.
 
 Missing, foreign, and deleted habits share the sanitized 404 response. Inactive
-or unscheduled habits return a standardized 409 conflict. There is intentionally
-no check-in frontend UI, increment command, streak, insight, achievement, or
-reminder behavior in Milestone 3.2A.
+or unscheduled habits return a standardized 409 conflict.
+
+The reusable frontend `HabitCheckInControl` appears only on Today habit items
+and the habit detail local-date projection. Target-one habits toggle between
+absolute counts zero and one; larger targets use bounded decrement/increment
+buttons that send the resulting absolute value. Initial progress remains
+server-rendered, successful responses update visible state, and route refresh
+keeps server aggregates consistent. Inactive and unscheduled detail states are
+read-only.
+
+Milestone 3.2B intentionally adds no generic collection-row controls, optimistic
+cache, global state, increment API, streak, insight, achievement, or reminder
+behavior. Full Docker and browser validation remains Milestone 3.2C scope.
