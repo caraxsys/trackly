@@ -1,5 +1,6 @@
 export const ErrorCode = {
   ApplicationError: 'APPLICATION_ERROR',
+  Conflict: 'CONFLICT',
   CorsOriginForbidden: 'CORS_ORIGIN_FORBIDDEN',
   InternalServerError: 'INTERNAL_SERVER_ERROR',
   InvalidJson: 'INVALID_JSON',

@@ -110,3 +110,97 @@ export const habitDetailDataSchema = {
     timezone: { type: 'string' },
   },
 };
+
+export const habitMutationDataSchema = {
+  type: 'object',
+  required: [
+    'id',
+    'name',
+    'description',
+    'categoryId',
+    'frequencyType',
+    'targetCount',
+    'startDate',
+    'endDate',
+    'isActive',
+    'weekdays',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    description: { type: ['string', 'null'] },
+    categoryId: { type: ['string', 'null'], format: 'uuid' },
+    frequencyType: {
+      type: 'string',
+      enum: ['daily', 'weekly', 'custom'],
+    },
+    targetCount: { type: 'integer', minimum: 1 },
+    startDate: { type: 'string', format: 'date' },
+    endDate: { type: ['string', 'null'], format: 'date' },
+    isActive: { type: 'boolean' },
+    weekdays: {
+      type: 'array',
+      uniqueItems: true,
+      items: { type: 'integer', minimum: 1, maximum: 7 },
+    },
+  },
+};
+
+export const habitStateDataSchema = {
+  type: 'object',
+  required: ['id', 'isActive'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    isActive: { type: 'boolean' },
+  },
+};
+
+export const habitDeleteDataSchema = {
+  type: 'object',
+  required: ['id', 'deleted'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    deleted: { type: 'boolean', const: true },
+  },
+};
+
+export const habitCreateBodySchema = {
+  type: 'object',
+  required: ['name', 'frequencyType', 'startDate'],
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', minLength: 1, maxLength: 160 },
+    description: { type: ['string', 'null'], maxLength: 10_000 },
+    categoryId: { type: ['string', 'null'], format: 'uuid' },
+    frequencyType: {
+      type: 'string',
+      enum: ['daily', 'weekly', 'custom'],
+    },
+    targetCount: { type: 'integer', minimum: 1, default: 1 },
+    startDate: { type: 'string', format: 'date' },
+    endDate: { type: ['string', 'null'], format: 'date' },
+    weekdays: {
+      type: 'array',
+      uniqueItems: true,
+      default: [],
+      items: { type: 'integer', minimum: 1, maximum: 7 },
+    },
+    isActive: { type: 'boolean', default: true },
+  },
+  examples: [
+    {
+      name: 'Read',
+      frequencyType: 'weekly',
+      startDate: '2026-07-01',
+      weekdays: [1, 3, 5],
+      targetCount: 1,
+    },
+  ],
+};
+
+export const habitUpdateBodySchema = {
+  ...habitCreateBodySchema,
+  required: [],
+  minProperties: 1,
+  examples: [{ name: 'Read a chapter', targetCount: 2 }],
+};

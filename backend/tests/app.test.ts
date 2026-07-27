@@ -107,6 +107,24 @@ describe('backend foundation', () => {
     });
   });
 
+  it('returns a standardized HTTP 400 for an empty JSON body', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/deactivate',
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'INVALID_JSON',
+        message: 'The request body is not valid JSON.',
+      },
+    });
+  });
+
   it('rejects unauthenticated access to the protected auth endpoint', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -162,6 +180,75 @@ describe('backend foundation', () => {
       invalidQueries.every((response) => response.statusCode === 400),
     ).toBe(true);
     expect(invalidId.statusCode).toBe(400);
+  });
+
+  it('requires authentication for all valid habit mutation requests', async () => {
+    const requests = [
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits',
+        payload: {
+          name: 'Read',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+        },
+      }),
+      app.inject({
+        method: 'PATCH',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000',
+        payload: { name: 'Read more' },
+      }),
+      app.inject({
+        method: 'DELETE',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/activate',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/deactivate',
+      }),
+    ];
+
+    const responses = await Promise.all(requests);
+    expect(responses.every((response) => response.statusCode === 401)).toBe(
+      true,
+    );
+  });
+
+  it('rejects malformed habit mutation payloads', async () => {
+    const responses = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits',
+        payload: {
+          name: ' ',
+          frequencyType: 'daily',
+          startDate: '2026-01-01',
+        },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits',
+        payload: {
+          name: 'Read',
+          frequencyType: 'weekly',
+          startDate: '2026-01-01',
+          weekdays: [1, 1],
+        },
+      }),
+      app.inject({
+        method: 'PATCH',
+        url: '/api/v1/habits/not-a-uuid',
+        payload: { name: 'Read' },
+      }),
+    ]);
+
+    expect(responses.every((response) => response.statusCode === 400)).toBe(
+      true,
+    );
   });
 
   it('rejects unauthenticated Today and category reads', async () => {

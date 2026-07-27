@@ -217,6 +217,17 @@ UI or write endpoints are part of this milestone.
 See [`docs/today-query.md`](docs/today-query.md) for ownership, scheduling,
 timezone, grouping, summary, and performance rules.
 
+## Habit API
+
+The authenticated Habit API supports user-scoped collection/detail reads and
+backend mutations under `/api/v1/habits`. Milestone 3.1A adds create, partial
+update, soft delete, activate, and deactivate commands while keeping the
+frontend read-only. Multi-table habit and schedule writes are transactional;
+foreign, deleted, and missing resources use sanitized standard errors.
+
+See [`docs/habits.md`](docs/habits.md) for endpoint contracts, validation,
+scheduling, ownership, and CQRS boundaries.
+
 The authenticated `/today` route now renders the real dashboard server-side.
 It includes local-date greeting and navigation, daily progress, scheduled
 habits, task attention/completion groups, active goals, and polished
