@@ -17,3 +17,8 @@ Authenticated domain reads use repository/service/controller modules.
 Repositories own Drizzle access, services own aggregation and interpretation,
 and controllers contain no SQL. The Today aggregation intentionally has a
 fixed query count rather than per-record data loading.
+
+The Today page is the server-rendered frontend boundary for this aggregation.
+User-specific responses are always fetched with `no-store` through the internal
+backend URL and are never placed in shared static caches. URL query state makes
+date navigation shareable and refresh-safe without a global client store.

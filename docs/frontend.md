@@ -94,6 +94,31 @@ The root route provides loading, global error, not-found, title-template,
 description, viewport, and theme-color foundations. Public errors use friendly
 messages and do not render raw exceptions or stack traces.
 
+## Today dashboard
+
+`/today` is a dynamic Server Component backed by the authenticated
+`GET /api/v1/today` endpoint. The initial request forwards the incoming cookie
+to `INTERNAL_API_URL`, uses `cache: no-store`, and renders the dashboard without
+a duplicate browser fetch. React request memoization deduplicates the session
+lookup shared by the protected layout and page.
+
+The page is composed from focused `components/today` presentation components
+for the header, URL-based date navigation, semantic progress, habits, task
+groups, goals, and the cohesive empty state. Previous/next links use
+`/today?date=YYYY-MM-DD`; returning to `/today` delegates current-local-date
+resolution to the backend.
+
+Date-only values are formatted as calendar values without timezone conversion.
+Task timestamps are formatted with the timezone returned by the API. Greeting
+selection happens only on the server, preventing clock-based hydration
+differences.
+
+The route has dashboard-shaped loading skeletons, a retryable route error, and
+a friendly invalid-date state. All content is read-only: no checkbox, quick-add,
+completion, editing, or deletion controls are rendered before mutation APIs
+exist. Responsive layout uses one column on mobile and two primary columns at
+wide desktop sizes.
+
 ## Tests
 
 Run the deterministic Vitest and React Testing Library suite from the

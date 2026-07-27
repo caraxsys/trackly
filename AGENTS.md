@@ -49,3 +49,10 @@
 - Keep database queries in repositories, never in routes or controllers.
 - Exclude soft-deleted records from normal reads unless explicitly requested.
 - Use deterministic sorting with a stable final tie-breaker.
+- Today UI must use the real authenticated API and must never use mock
+  production data.
+- Never place user-specific dashboard responses in shared or static caches.
+- Prefer URL query state for shareable and refresh-safe date navigation.
+- Do not expose mutation controls before the corresponding APIs exist.
+- Format date-only values as calendar dates and timestamps in their documented
+  user timezone.

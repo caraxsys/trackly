@@ -213,6 +213,12 @@ UI or write endpoints are part of this milestone.
 See [`docs/today-query.md`](docs/today-query.md) for ownership, scheduling,
 timezone, grouping, summary, and performance rules.
 
+The authenticated `/today` route now renders the real dashboard server-side.
+It includes local-date greeting and navigation, daily progress, scheduled
+habits, task attention/completion groups, active goals, and polished
+loading/error/empty states. The dashboard is read-only until future mutation
+milestones.
+
 ## Docker notes
 
 Compose creates an internal bridge network for application traffic and stores
