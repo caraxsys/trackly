@@ -1,12 +1,26 @@
 import { AppError } from '../../errors/app-error.js';
 import { ErrorCode } from '../../errors/error-codes.js';
+import { getIsoWeekday } from '../../lib/date/calendar-date.js';
+import {
+  getLocalCalendarDate,
+  resolveTimezone,
+} from '../../lib/date/timezone.js';
+import type { PreferenceRepository } from '../preferences/preference.repository.js';
 import type { HabitCommandRepository } from './habit-command.repository.js';
 import type {
+  HabitCheckInInput,
+  HabitCheckInResult,
   CreateHabitInput,
   HabitCommandResult,
   HabitFrequency,
   UpdateHabitInput,
 } from './habit.types.js';
+
+interface CheckInContext {
+  now?: Date;
+  onTimezoneFallback?: () => void;
+  userId: string;
+}
 
 function notFound(message = 'Habit was not found.') {
   return new AppError({
@@ -85,7 +99,10 @@ async function validateCategory(
   }
 }
 
-export function createHabitCommandService(repository: HabitCommandRepository) {
+export function createHabitCommandService(
+  repository: HabitCommandRepository,
+  preferenceRepository: PreferenceRepository,
+) {
   return {
     async create(
       userId: string,
@@ -187,6 +204,60 @@ export function createHabitCommandService(repository: HabitCommandRepository) {
       const updated = await repository.setActive(userId, id, true, false);
       if (!updated) throw conflict('Habit state changed before deactivation.');
       return updated;
+    },
+
+    async checkIn(
+      context: CheckInContext,
+      id: string,
+      input: HabitCheckInInput,
+    ): Promise<HabitCheckInResult> {
+      const current = await repository.findOwned(context.userId, id);
+      if (!current) throw notFound();
+      if (!current.isActive) {
+        throw conflict('Inactive habits cannot be checked in.');
+      }
+
+      const storedTimezone = await preferenceRepository.findTimezone(
+        context.userId,
+      );
+      const timezone = resolveTimezone(storedTimezone);
+      if (storedTimezone !== null && timezone !== storedTimezone) {
+        context.onTimezoneFallback?.();
+      }
+      const date =
+        input.date ?? getLocalCalendarDate(context.now ?? new Date(), timezone);
+      const isInDateRange =
+        date >= current.startDate &&
+        (current.endDate === null || date <= current.endDate);
+      const isScheduledWeekday =
+        current.frequencyType === 'daily' ||
+        current.weekdays.map(Number).includes(getIsoWeekday(date));
+      if (!isInDateRange || !isScheduledWeekday) {
+        throw conflict('Habit is not scheduled for the requested date.');
+      }
+      if (
+        !Number.isInteger(input.completedCount) ||
+        input.completedCount < 0 ||
+        input.completedCount > current.targetCount
+      ) {
+        throw invalid(
+          `completedCount must be an integer from 0 through ${current.targetCount}.`,
+        );
+      }
+
+      await repository.setCheckIn(
+        context.userId,
+        id,
+        date,
+        input.completedCount,
+      );
+      return {
+        habitId: id,
+        date,
+        completedCount: input.completedCount,
+        targetCount: current.targetCount,
+        isCompleted: input.completedCount >= current.targetCount,
+      };
     },
   };
 }

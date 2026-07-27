@@ -37,7 +37,7 @@ export const swaggerPlugin = fastifyPlugin(
           { name: 'categories', description: 'Category query endpoints' },
           {
             name: 'habits',
-            description: 'Authenticated, read-only habit endpoints',
+            description: 'Authenticated habit query and command endpoints',
           },
           { name: 'tasks', description: 'Future task endpoints' },
           { name: 'goals', description: 'Future goal endpoints' },

@@ -105,3 +105,16 @@ export interface HabitCommandResult {
   targetCount: number;
   weekdays: number[];
 }
+
+export interface HabitCheckInInput {
+  completedCount: number;
+  date?: string | undefined;
+}
+
+export interface HabitCheckInResult {
+  completedCount: number;
+  date: string;
+  habitId: string;
+  isCompleted: boolean;
+  targetCount: number;
+}

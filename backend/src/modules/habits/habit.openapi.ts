@@ -164,6 +164,29 @@ export const habitDeleteDataSchema = {
   },
 };
 
+export const habitCheckInDataSchema = {
+  type: 'object',
+  required: ['habitId', 'date', 'completedCount', 'targetCount', 'isCompleted'],
+  properties: {
+    habitId: { type: 'string', format: 'uuid' },
+    date: { type: 'string', format: 'date' },
+    completedCount: { type: 'integer', minimum: 0 },
+    targetCount: { type: 'integer', minimum: 1 },
+    isCompleted: { type: 'boolean' },
+  },
+};
+
+export const habitCheckInBodyJsonSchema = {
+  type: 'object',
+  required: ['completedCount'],
+  additionalProperties: false,
+  properties: {
+    date: { type: 'string', format: 'date' },
+    completedCount: { type: 'integer', minimum: 0 },
+  },
+  examples: [{ date: '2026-07-27', completedCount: 1 }],
+};
+
 export const habitCreateBodySchema = {
   type: 'object',
   required: ['name', 'frequencyType', 'startDate'],

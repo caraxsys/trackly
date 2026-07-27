@@ -1,7 +1,12 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import type { Database } from '../../db/client.js';
-import { categories, habitSchedules, habits } from '../../db/schema/index.js';
+import {
+  categories,
+  habitCheckIns,
+  habitSchedules,
+  habits,
+} from '../../db/schema/index.js';
 import type { CreateHabitInput, UpdateHabitInput } from './habit.types.js';
 
 function commandProjection() {
@@ -196,6 +201,39 @@ export function createHabitCommandRepository(database: Database) {
         )
         .returning({ id: habits.id, isActive: habits.isActive });
       return updated ?? null;
+    },
+
+    async setCheckIn(
+      userId: string,
+      habitId: string,
+      date: string,
+      completedCount: number,
+    ) {
+      if (completedCount === 0) {
+        await database
+          .delete(habitCheckIns)
+          .where(
+            and(
+              eq(habitCheckIns.habitId, habitId),
+              eq(habitCheckIns.userId, userId),
+              eq(habitCheckIns.checkInDate, date),
+            ),
+          );
+        return;
+      }
+
+      await database
+        .insert(habitCheckIns)
+        .values({
+          userId,
+          habitId,
+          checkInDate: date,
+          completedCount,
+        })
+        .onConflictDoUpdate({
+          target: [habitCheckIns.habitId, habitCheckIns.checkInDate],
+          set: { completedCount, updatedAt: new Date() },
+        });
     },
   };
 }

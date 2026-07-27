@@ -210,6 +210,11 @@ describe('backend foundation', () => {
         method: 'POST',
         url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/deactivate',
       }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/check-in',
+        payload: { completedCount: 1 },
+      }),
     ];
 
     const responses = await Promise.all(requests);
@@ -243,6 +248,16 @@ describe('backend foundation', () => {
         method: 'PATCH',
         url: '/api/v1/habits/not-a-uuid',
         payload: { name: 'Read' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/check-in',
+        payload: { date: '2026-02-30', completedCount: 1 },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/check-in',
+        payload: { completedCount: -1 },
       }),
     ]);
 

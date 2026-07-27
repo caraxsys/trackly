@@ -5,6 +5,7 @@ import { successResponse } from '../../http/responses.js';
 import type { HabitCommandService } from './habit-command.service.js';
 import type {
   CreateHabitBody,
+  HabitCheckInBody,
   HabitParams,
   UpdateHabitBody,
 } from './habit.schema.js';
@@ -45,6 +46,18 @@ export function createHabitCommandController(service: HabitCommandService) {
       const userId = await requireUserId(request);
       return successResponse(
         await service.deactivate(userId, request.params.id),
+      );
+    },
+
+    checkIn: async (
+      request: FastifyRequest<{
+        Body: HabitCheckInBody;
+        Params: HabitParams;
+      }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await service.checkIn({ userId }, request.params.id, request.body),
       );
     },
   };

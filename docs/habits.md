@@ -1,8 +1,8 @@
 # Habit module
 
 Milestone 3.0 introduced Habit queries. Milestone 3.1A adds backend-only create,
-update, activation, deactivation, and soft-delete commands. Habit check-ins and
-frontend mutation controls remain out of scope.
+update, activation, deactivation, and soft-delete commands. Milestone 3.2A adds
+the backend check-in command. Check-in frontend controls remain out of scope.
 
 ## API and semantics
 
@@ -109,5 +109,21 @@ uses a native confirmation when dirty, then returns to the detail page for edit
 or the collection for create. Successful create and edit operations redirect to
 the detail page with accessible status feedback.
 
-Habit check-in remains intentionally absent. Milestone 3.2 can add check-in
-commands while reusing the selected-date and Today projections.
+## Check-in API
+
+`POST /api/v1/habits/:id/check-in` sets absolute progress for one logical
+calendar date. The body requires an integer `completedCount` and accepts an
+optional `date`; an omitted date resolves to the authenticated user's local
+today with the existing safe UTC fallback.
+
+The habit must be owned, active, non-deleted, within its date range, and
+scheduled on the resolved ISO weekday. Counts range from zero through the
+habit's target. Positive counts use the existing unique habit/date constraint
+for an idempotent upsert. Zero deletes any stored row so zero-progress records
+are not retained. Completion remains derived from
+`completedCount >= targetCount`, and Today reads reflect writes immediately.
+
+Missing, foreign, and deleted habits share the sanitized 404 response. Inactive
+or unscheduled habits return a standardized 409 conflict. There is intentionally
+no check-in frontend UI, increment command, streak, insight, achievement, or
+reminder behavior in Milestone 3.2A.
