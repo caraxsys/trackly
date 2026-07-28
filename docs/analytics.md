@@ -15,6 +15,17 @@ The response contains the resolved inclusive `startDate` and `endDate`, plus
 unauthenticated requests return HTTP 401, and unexpected failures use the
 sanitized standard HTTP 500 response.
 
+`GET /api/v1/analytics/history` returns a gap-free daily series ending on the
+authenticated user's local current date. `period` accepts `7d`, `30d`, or
+`90d` and defaults to `30d`; `granularity` currently accepts only `day` and
+defaults accordingly. Every calendar date is returned even when it has no
+scheduled occurrences.
+
+History summary averages are arithmetic means of the returned daily rates,
+including zero-activity dates. Counts and target totals are summed across the
+complete range. The history query reuses the summary repository and does not
+persist derived data.
+
 ## Metrics
 
 Each scheduled Habit/date pair is one occurrence:
@@ -44,13 +55,19 @@ ranges are supported.
 
 ## Frontend and exclusions
 
-The authenticated `/analytics` Server Component uses an uncached internal API
-request. URL query state controls period and selected date. Accessible links,
-a native date form, an inclusive range heading, six semantic definition-list
-cards, and a zero-occurrence state provide the responsive summary.
+The authenticated `/analytics` Server Component uses uncached internal API
+requests for both summary and history. Existing `period` and `date` parameters
+continue to control the summary, while `historyPeriod` preserves the 7D, 30D,
+or 90D trend selection without changing the summary URL contract.
 
-Charts, heatmaps, streaks, insights, achievements, reminders, tasks, goals, and
-broader analytics are explicitly deferred.
+Responsive Recharts line visualizations display Completion Rate and Progress
+Rate. Their source values come directly from the backend; a screen-reader-only
+table exposes every date and both rates without relying on the visual chart.
+Historical summary cards and a dedicated no-activity state accompany the
+trends.
+
+Custom ranges, weekly/monthly history granularity, heatmaps, category or goal
+analytics, exports, forecasting, and persisted analytics remain out of scope.
 
 ## Integration validation
 
@@ -70,8 +87,8 @@ cleanliness. Docker checks covered PostgreSQL readiness, backend health and
 readiness, frontend responses, CORS-backed requests, Drizzle schema parity,
 and the published OpenAPI contract.
 
-Known limitations are deliberate: the page has summary cards only, does not
-cache user analytics, and exposes no charts, exports, streaks, or non-Habit
-metrics. A total backend outage follows the existing protected-route behavior
-because session resolution occurs before the Analytics request; the dedicated
-retryable Analytics error boundary remains covered by frontend tests.
+Known limitations are deliberate: history always ends on the user-local current
+date, averages include zero-activity calendar days, and the page does not cache
+user analytics. A total backend outage follows the existing protected-route
+behavior because session resolution occurs before the Analytics request; the
+dedicated retryable Analytics error boundary remains covered by frontend tests.

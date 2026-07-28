@@ -13,3 +13,10 @@ export const analyticsSummaryQuerySchema = z.object({
 });
 
 export type AnalyticsSummaryQuery = z.infer<typeof analyticsSummaryQuerySchema>;
+
+export const analyticsHistoryQuerySchema = z.object({
+  period: z.enum(['7d', '30d', '90d']).default('30d'),
+  granularity: z.literal('day').default('day'),
+});
+
+export type AnalyticsHistoryQuery = z.infer<typeof analyticsHistoryQuerySchema>;

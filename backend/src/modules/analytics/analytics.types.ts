@@ -1,4 +1,6 @@
 export type AnalyticsPeriod = 'day' | 'week' | 'month';
+export type AnalyticsHistoryPeriod = '7d' | '30d' | '90d';
+export type AnalyticsHistoryGranularity = 'day';
 
 export interface AnalyticsHabitRecord {
   checkIns: Array<{ completedCount: number; date: string }>;
@@ -20,4 +22,30 @@ export interface AnalyticsSummary {
   startDate: string;
   totalCompletedCount: number;
   totalTargetCount: number;
+}
+
+export interface AnalyticsHistoryPoint {
+  completedCount: number;
+  completionRate: number;
+  date: string;
+  progressRate: number;
+  scheduledCount: number;
+  totalCompletedCount: number;
+  totalTargetCount: number;
+}
+
+export interface AnalyticsHistory {
+  endDate: string;
+  granularity: AnalyticsHistoryGranularity;
+  history: AnalyticsHistoryPoint[];
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  summary: {
+    averageCompletionRate: number;
+    averageProgressRate: number;
+    completedCount: number;
+    scheduledCount: number;
+    totalCompletedCount: number;
+    totalTargetCount: number;
+  };
 }

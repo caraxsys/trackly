@@ -11,6 +11,9 @@ import type { PreferenceRepository } from '../preferences/preference.repository.
 import type { AnalyticsQueryRepository } from './analytics.repository.js';
 import type {
   AnalyticsHabitRecord,
+  AnalyticsHistory,
+  AnalyticsHistoryGranularity,
+  AnalyticsHistoryPeriod,
   AnalyticsPeriod,
   AnalyticsSummary,
 } from './analytics.types.js';
@@ -27,6 +30,20 @@ interface GetSummaryOptions {
   period: AnalyticsPeriod;
   userId: string;
 }
+
+interface GetHistoryOptions {
+  granularity: AnalyticsHistoryGranularity;
+  now?: Date;
+  onTimezoneFallback?: () => void;
+  period: AnalyticsHistoryPeriod;
+  userId: string;
+}
+
+const historyDays: Record<AnalyticsHistoryPeriod, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+};
 
 function formatDate(year: number, month: number, day: number) {
   return `${year.toString().padStart(4, '0')}-${month
@@ -84,6 +101,10 @@ function roundRate(numerator: number, denominator: number) {
     : Math.round((numerator / denominator) * 10_000) / 100;
 }
 
+function roundAverage(total: number, count: number) {
+  return count === 0 ? 0 : Math.round((total / count) * 100) / 100;
+}
+
 function summarize(
   period: AnalyticsPeriod,
   startDate: string,
@@ -133,6 +154,67 @@ function summarize(
   };
 }
 
+function summarizeHistory(
+  period: AnalyticsHistoryPeriod,
+  startDate: string,
+  endDate: string,
+  records: AnalyticsHabitRecord[],
+): AnalyticsHistory {
+  const history = [];
+
+  for (let date = startDate; date <= endDate; date = addCalendarDays(date, 1)) {
+    const point = summarize('day', date, date, records);
+    history.push({
+      date,
+      scheduledCount: point.scheduledCount,
+      completedCount: point.completedCount,
+      completionRate: point.completionRate,
+      totalTargetCount: point.totalTargetCount,
+      totalCompletedCount: point.totalCompletedCount,
+      progressRate: point.progressRate,
+    });
+  }
+
+  const totals = history.reduce(
+    (result, point) => ({
+      scheduledCount: result.scheduledCount + point.scheduledCount,
+      completedCount: result.completedCount + point.completedCount,
+      totalTargetCount: result.totalTargetCount + point.totalTargetCount,
+      totalCompletedCount:
+        result.totalCompletedCount + point.totalCompletedCount,
+      completionRate: result.completionRate + point.completionRate,
+      progressRate: result.progressRate + point.progressRate,
+    }),
+    {
+      scheduledCount: 0,
+      completedCount: 0,
+      totalTargetCount: 0,
+      totalCompletedCount: 0,
+      completionRate: 0,
+      progressRate: 0,
+    },
+  );
+
+  return {
+    period,
+    granularity: 'day',
+    startDate,
+    endDate,
+    summary: {
+      averageCompletionRate: roundAverage(
+        totals.completionRate,
+        history.length,
+      ),
+      averageProgressRate: roundAverage(totals.progressRate, history.length),
+      scheduledCount: totals.scheduledCount,
+      completedCount: totals.completedCount,
+      totalTargetCount: totals.totalTargetCount,
+      totalCompletedCount: totals.totalCompletedCount,
+    },
+    history,
+  };
+}
+
 export function createAnalyticsQueryService(
   dependencies: AnalyticsServiceDependencies,
 ) {
@@ -160,6 +242,29 @@ export function createAnalyticsQueryService(
       );
 
       return summarize(options.period, startDate, endDate, records);
+    },
+
+    async getHistory(options: GetHistoryOptions) {
+      const storedTimezone =
+        await dependencies.preferenceRepository.findTimezone(options.userId);
+      const timezone = resolveTimezone(storedTimezone);
+
+      if (storedTimezone !== null && timezone !== storedTimezone) {
+        options.onTimezoneFallback?.();
+      }
+
+      const endDate = getLocalCalendarDate(options.now ?? new Date(), timezone);
+      const startDate = addCalendarDays(
+        endDate,
+        -(historyDays[options.period] - 1),
+      );
+      const records = await dependencies.analyticsRepository.listHabitRecords(
+        options.userId,
+        startDate,
+        endDate,
+      );
+
+      return summarizeHistory(options.period, startDate, endDate, records);
     },
   };
 }
