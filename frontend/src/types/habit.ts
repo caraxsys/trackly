@@ -104,3 +104,10 @@ export interface HabitCheckInResult {
   targetCount: number;
   isCompleted: boolean;
 }
+
+export interface HabitStreak {
+  habitId: string;
+  currentStreak: number;
+  longestStreak: number;
+  lastCompletedDate: string | null;
+}

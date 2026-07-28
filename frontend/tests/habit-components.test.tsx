@@ -116,13 +116,27 @@ describe('habit detail UI', () => {
       today: selectedDate,
       timezone: 'Asia/Jakarta',
     };
-    render(<HabitDetail habit={detail} timezone="Asia/Jakarta" />);
+    render(
+      <HabitDetail
+        habit={detail}
+        streak={{
+          habitId: detail.id,
+          currentStreak: 3,
+          longestStreak: 8,
+          lastCompletedDate: '2026-07-26',
+        }}
+        timezone="Asia/Jakarta"
+      />,
+    );
 
     expect(
       screen.getByRole('heading', { name: 'Morning water' }),
     ).toBeInTheDocument();
     expect(screen.getByText('No description provided.')).toBeInTheDocument();
     expect(screen.getByText('Scheduled')).toBeInTheDocument();
+    expect(screen.getByText('Current Streak')).toBeInTheDocument();
+    expect(screen.getByText('Longest Streak')).toBeInTheDocument();
+    expect(screen.getByText('Sunday, July 26, 2026')).toBeInTheDocument();
     expect(
       screen.getByText('2 / 2 completed — target complete'),
     ).toBeInTheDocument();

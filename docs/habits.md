@@ -146,5 +146,29 @@ theme modes, authentication redirects, and console/hydration cleanliness.
 
 Known limitations are deliberate: check-in controls only appear where a
 specific logical date is available; generic collection rows remain read-only,
-and no optimistic cache, offline queue, streak, insight, achievement, reminder,
-or analytics behavior is included.
+and no optimistic cache or offline queue is included.
+
+## Streak query
+
+Milestone 4.1 adds `GET /api/v1/habits/:id/streak`. The authenticated,
+user-scoped read model derives `currentStreak`, `longestStreak`, and nullable
+`lastCompletedDate` without persisting an aggregate. Missing, foreign, and
+soft-deleted habits share the standard 404 response; inactive habits remain
+queryable so their historical results are retained.
+
+Only scheduled occurrences from the habit start date through the earlier of
+its end date or the user's local current date participate. Daily habits use
+every eligible date; weekly and custom habits use their persisted ISO weekdays.
+Non-scheduled dates do not interrupt a sequence, future dates are ignored, and
+an occurrence is complete only when `completed_count >= target_count`. The
+current streak is zero when the latest eligible scheduled occurrence is
+incomplete. The last-completed field is `null` when no eligible completion
+exists.
+
+The streak query follows a separate read-only CQRS path. Its repository selects
+only schedule, target, range, and owned check-in fields; its service resolves
+the authenticated user's timezone and derives occurrences; its controller only
+authenticates and shapes the standard response. Habit Detail fetches the detail
+and streak read models concurrently and renders the three streak values in a
+semantic server-rendered definition list. Streaks are intentionally absent from
+Today, Analytics, charts, and dashboards.

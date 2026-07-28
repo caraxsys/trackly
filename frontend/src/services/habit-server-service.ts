@@ -9,6 +9,7 @@ import type {
   HabitCollectionData,
   HabitCollectionParams,
   HabitDetail,
+  HabitStreak,
 } from '@/types/habit';
 
 export class HabitServerError extends Error {
@@ -54,6 +55,12 @@ export function getServerHabits(params: HabitCollectionParams) {
 
 export function getServerHabit(id: string) {
   return requestHabit<HabitDetail>(`/api/v1/habits/${encodeURIComponent(id)}`);
+}
+
+export function getServerHabitStreak(id: string) {
+  return requestHabit<HabitStreak>(
+    `/api/v1/habits/${encodeURIComponent(id)}/streak`,
+  );
 }
 
 export function getServerHabitCategories() {

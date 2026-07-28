@@ -158,6 +158,40 @@ describe('backend foundation', () => {
     });
   });
 
+  it('validates habit streak identifiers and requires authentication', async () => {
+    const [invalid, unauthenticated] = await Promise.all([
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/habits/not-a-uuid/streak',
+      }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/streak',
+      }),
+    ]);
+
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+  });
+
+  it('documents the habit streak endpoint and standard responses', () => {
+    const document = app.swagger();
+    const operation = document.paths?.['/api/v1/habits/{id}/streak']?.get;
+
+    expect(operation).toBeDefined();
+    for (const status of ['200', '400', '401', '404', '500']) {
+      expect(operation?.responses?.[status]).toBeDefined();
+    }
+  });
+
   it('validates analytics queries and rejects unauthenticated access', async () => {
     const invalidResponses = await Promise.all([
       app.inject({

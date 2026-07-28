@@ -14,6 +14,8 @@ import { createGoalRepository } from '../../src/modules/goals/goal.repository.js
 import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
 import { createHabitCommandRepository } from '../../src/modules/habits/habit-command.repository.js';
 import { createHabitCommandService } from '../../src/modules/habits/habit-command.service.js';
+import { createHabitStreakQueryRepository } from '../../src/modules/habits/habit-streak.repository.js';
+import { createHabitStreakQueryService } from '../../src/modules/habits/habit-streak.service.js';
 import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
 import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
@@ -72,6 +74,13 @@ function habitCommandService() {
     createHabitCommandRepository(database),
     createPreferenceRepository(database),
   );
+}
+
+function habitStreakService() {
+  return createHabitStreakQueryService({
+    habitStreakRepository: createHabitStreakQueryRepository(database),
+    preferenceRepository: createPreferenceRepository(database),
+  });
 }
 
 function analyticsService() {
@@ -1102,6 +1111,92 @@ describe('core database domain schema', () => {
         inserted.find((item) => item.name === 'Deleted owned')!.id,
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('derives owned historical streaks without exposing foreign or deleted habits', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Asia/Jakarta' });
+    const inserted = await database
+      .insert(habits)
+      .values([
+        {
+          userId,
+          name: 'Inactive custom streak',
+          frequencyType: 'custom',
+          targetCount: 2,
+          startDate: '2026-07-20',
+          isActive: false,
+        },
+        {
+          userId,
+          name: 'Deleted streak',
+          frequencyType: 'daily',
+          startDate: '2026-07-20',
+          deletedAt: new Date(),
+        },
+        {
+          userId: otherUserId,
+          name: 'Foreign streak',
+          frequencyType: 'daily',
+          startDate: '2026-07-20',
+        },
+      ])
+      .returning({ id: habits.id, name: habits.name });
+    const idFor = (name: string) =>
+      inserted.find((item) => item.name === name)!.id;
+    const ownedId = idFor('Inactive custom streak');
+
+    await database.insert(habitSchedules).values([
+      { habitId: ownedId, dayOfWeek: 1 },
+      { habitId: ownedId, dayOfWeek: 3 },
+    ]);
+    await database.insert(habitCheckIns).values([
+      {
+        habitId: ownedId,
+        userId,
+        checkInDate: '2026-07-20',
+        completedCount: 2,
+      },
+      {
+        habitId: ownedId,
+        userId,
+        checkInDate: '2026-07-22',
+        completedCount: 3,
+      },
+      {
+        habitId: ownedId,
+        userId,
+        checkInDate: '2026-07-27',
+        completedCount: 1,
+      },
+    ]);
+
+    await expect(
+      habitStreakService().getStreak(
+        {
+          userId,
+          now: new Date('2026-07-27T18:00:00.000Z'),
+        },
+        ownedId,
+      ),
+    ).resolves.toEqual({
+      habitId: ownedId,
+      currentStreak: 0,
+      longestStreak: 2,
+      lastCompletedDate: '2026-07-22',
+    });
+
+    for (const inaccessibleId of [
+      idFor('Deleted streak'),
+      idFor('Foreign streak'),
+    ]) {
+      await expect(
+        habitStreakService().getStreak({ userId }, inaccessibleId),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    }
   });
 
   it('keeps a 100-habit collection bounded and deterministic', async () => {

@@ -19,10 +19,14 @@ import {
   habitDeleteDataSchema,
   habitDetailDataSchema,
   habitMutationDataSchema,
+  habitStreakDataSchema,
   habitStateDataSchema,
   habitUpdateBodySchema,
 } from './habit.openapi.js';
 import { createHabitRepository } from './habit.repository.js';
+import { createHabitStreakQueryController } from './habit-streak.controller.js';
+import { createHabitStreakQueryRepository } from './habit-streak.repository.js';
+import { createHabitStreakQueryService } from './habit-streak.service.js';
 import {
   habitCollectionQuerySchema,
   habitCheckInBodySchema,
@@ -42,6 +46,12 @@ const service = createHabitService({
   preferenceRepository: createPreferenceRepository(database),
 });
 const controller = createHabitController(service);
+const streakController = createHabitStreakQueryController(
+  createHabitStreakQueryService({
+    habitStreakRepository: createHabitStreakQueryRepository(database),
+    preferenceRepository: createPreferenceRepository(database),
+  }),
+);
 const commandController = createHabitCommandController(
   createHabitCommandService(
     createHabitCommandRepository(database),
@@ -105,6 +115,29 @@ export function habitRoutes(app: FastifyInstance) {
       },
     },
     controller.list,
+  );
+
+  app.get<{ Params: HabitParams }>(
+    '/habits/:id/streak',
+    {
+      preValidation: validateRequest({ params: habitParamsSchema }),
+      schema: {
+        tags: ['habits'],
+        summary: "Get an authenticated user's habit streak",
+        description:
+          'Derives current and longest streaks from completed scheduled occurrences through the user-local current date. Inactive habits retain historical streaks.',
+        security: [{ cookieAuth: [] }],
+        params: idParamsJsonSchema,
+        response: {
+          200: successResponseJsonSchema(habitStreakDataSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          404: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    streakController,
   );
 
   app.get<{ Params: HabitParams }>(
