@@ -60,3 +60,38 @@ differ from the derived achievement state.
 Progress is computed on every request and is never persisted. Goal collections
 use one grouped check-in query for all returned Goals, so query count remains
 bounded when multiple Goals share a Habit or use different ranges.
+
+## Goal dashboard
+
+Milestone 5.3 turns `/goals` into the primary Goal dashboard without adding a
+backend endpoint or persisted aggregates. The server-rendered page combines the
+existing Goal collection with the established Today projection's user-local
+calendar date, then uses pure frontend view-model selectors for summaries,
+priority groups, date states, and optional collection sorting.
+
+Summary metrics cover the current filtered collection: total, active,
+completed, cancelled, target-reached, and average active progress. The average
+uses the existing 0–100 rate representation, rounds to two decimals, returns
+zero when no Goals are active, and intentionally retains over-target values.
+
+Priority groups use deterministic rules:
+
+- **Almost there:** active, unreached Goals at 70% or higher, ordered by
+  progress descending and deadline ascending.
+- **Ending soon:** active, unreached, non-expired Goals ending from user-local
+  today through seven calendar days later, inclusively.
+- **Targets reached:** Goals whose request-time progress currently reaches the
+  target, ordered by `updatedAt` descending. This truthful name does not imply
+  that an achievement timestamp exists.
+- **Over target:** Goals whose current count exceeds the target, ordered by
+  progress descending.
+
+Cards distinguish manual status from target achievement and explicitly label
+not-started, expired, reached, and over-target states. Calendar-day comparisons
+use ISO date-only values and the backend-resolved local date rather than browser
+UTC timestamps. Status filtering remains URL-backed, while optional sorting is
+performed over the complete filtered collection in the frontend server layer.
+
+This dashboard does not automate status, persist summaries, invent achievement
+history, add charts or notifications, alter Today output, or change Habit
+check-in and Goal progress semantics.
