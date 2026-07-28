@@ -4,10 +4,12 @@ export type AnalyticsHistoryGranularity = 'day';
 export type AnalyticsHeatmapPeriod = '90d' | '180d' | '365d';
 
 export interface AnalyticsHabitRecord {
+  category?: { categoryId: string; name: string } | null;
   checkIns: Array<{ completedCount: number; date: string }>;
   endDate: string | null;
   frequencyType: 'daily' | 'weekly' | 'custom';
   id: string;
+  name?: string;
   startDate: string;
   targetCount: number;
   weekdays: number[];
@@ -111,4 +113,42 @@ export interface AnalyticsHeatmap {
     totalCompletedCount: number;
     totalScheduledCount: number;
   };
+}
+
+export interface AnalyticsHabitRanking {
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  endDate: string;
+  hasActivity: boolean;
+  habits: Array<{
+    habitId: string;
+    name: string;
+    category: { categoryId: string; name: string } | null;
+    scheduledCount: number;
+    completedCount: number;
+    completionRate: number;
+    totalTargetCount: number;
+    totalCompletedCount: number;
+    progressRate: number;
+    currentStreak: number;
+    longestStreak: number;
+  }>;
+}
+
+export interface AnalyticsCategoryRanking {
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  endDate: string;
+  hasActivity: boolean;
+  categories: Array<{
+    categoryId: string;
+    name: string;
+    scheduledCount: number;
+    completedCount: number;
+    completionRate: number;
+    totalTargetCount: number;
+    totalCompletedCount: number;
+    progressRate: number;
+    activeHabitCount: number;
+  }>;
 }

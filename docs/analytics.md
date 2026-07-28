@@ -114,6 +114,28 @@ The server-rendered Analytics page keeps the independent selection in
 includes month labels, weekday guidance, a level legend, distinct unscheduled
 cells, keyboard focus, and per-day accessible date/count/rate descriptions.
 
+## Advanced rankings
+
+`GET /api/v1/analytics/categories` and `GET /api/v1/analytics/habits` accept
+the shared `7d`, `30d`, or `90d` period and default to `30d`. Both end on
+authenticated user-local today, remain ownership-scoped and read-only, and
+exclude entries with no scheduled occurrence. Inactive habits remain included
+when their dated schedule intersects the range; soft-deleted habits remain
+excluded.
+
+Habit metrics reuse the same occurrence completion and capped progress
+definitions as summary/history. Streak values reuse the existing streak engine
+over the batched habit projection, avoiding per-habit database reads. Category
+totals roll up their qualifying habits and `activeHabitCount` counts those
+habits. Results sort by completion rate descending, progress rate descending,
+name ascending, then ID for a stable tie-breaker.
+
+The Analytics page fetches both rankings server-side using `historyPeriod`.
+Category cards show percentages alongside volumes and active-habit counts.
+Habit cards use neutral language and expose category, completion/progress
+values, occurrence counts, and both streaks through semantic headings and
+definition lists.
+
 ## Integration validation
 
 Milestone 4.0B validated the complete `/analytics` flow against the Dockerized

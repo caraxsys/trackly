@@ -101,3 +101,41 @@ export interface AnalyticsInsightsData {
     } | null;
   };
 }
+
+export interface AnalyticsCategoryRankings {
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  endDate: string;
+  hasActivity: boolean;
+  categories: Array<{
+    categoryId: string;
+    name: string;
+    scheduledCount: number;
+    completedCount: number;
+    completionRate: number;
+    totalTargetCount: number;
+    totalCompletedCount: number;
+    progressRate: number;
+    activeHabitCount: number;
+  }>;
+}
+
+export interface AnalyticsHabitRankings {
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  endDate: string;
+  hasActivity: boolean;
+  habits: Array<{
+    habitId: string;
+    name: string;
+    category: { categoryId: string; name: string } | null;
+    scheduledCount: number;
+    completedCount: number;
+    completionRate: number;
+    totalTargetCount: number;
+    totalCompletedCount: number;
+    progressRate: number;
+    currentStreak: number;
+    longestStreak: number;
+  }>;
+}

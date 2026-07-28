@@ -10,6 +10,8 @@ import { createPreferenceRepository } from '../preferences/preference.repository
 import { createAnalyticsQueryController } from './analytics.controller.js';
 import {
   analyticsHeatmapJsonSchema,
+  analyticsCategoriesJsonSchema,
+  analyticsHabitsJsonSchema,
   analyticsHistoryJsonSchema,
   analyticsInsightsJsonSchema,
   analyticsSummaryJsonSchema,
@@ -17,10 +19,12 @@ import {
 import { createAnalyticsQueryRepository } from './analytics.repository.js';
 import {
   analyticsHeatmapQuerySchema,
+  analyticsRankingQuerySchema,
   analyticsHistoryQuerySchema,
   analyticsInsightsQuerySchema,
   analyticsSummaryQuerySchema,
   type AnalyticsHeatmapQuery,
+  type AnalyticsRankingQuery,
   type AnalyticsHistoryQuery,
   type AnalyticsInsightsQuery,
   type AnalyticsSummaryQuery,
@@ -34,6 +38,55 @@ const analyticsService = createAnalyticsQueryService({
 const analyticsController = createAnalyticsQueryController(analyticsService);
 
 export function analyticsRoutes(app: FastifyInstance) {
+  const rankingQuerystring = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      period: {
+        type: 'string',
+        enum: ['7d', '30d', '90d'],
+        default: '30d',
+      },
+    },
+  } as const;
+
+  app.get<{ Querystring: AnalyticsRankingQuery }>(
+    '/analytics/categories',
+    {
+      preValidation: validateRequest({ query: analyticsRankingQuerySchema }),
+      schema: {
+        tags: ['analytics'],
+        summary: 'Rank habit performance by category',
+        querystring: rankingQuerystring,
+        response: {
+          200: successResponseJsonSchema(analyticsCategoriesJsonSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    analyticsController.categories,
+  );
+  app.get<{ Querystring: AnalyticsRankingQuery }>(
+    '/analytics/habits',
+    {
+      preValidation: validateRequest({ query: analyticsRankingQuerySchema }),
+      schema: {
+        tags: ['analytics'],
+        summary: 'Rank individual habit performance',
+        querystring: rankingQuerystring,
+        response: {
+          200: successResponseJsonSchema(analyticsHabitsJsonSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    analyticsController.habits,
+  );
+
   app.get<{ Querystring: AnalyticsHeatmapQuery }>(
     '/analytics/heatmap',
     {

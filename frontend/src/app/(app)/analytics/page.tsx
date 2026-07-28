@@ -5,12 +5,15 @@ import { redirect } from 'next/navigation';
 import { AnalyticsHistory } from '@/components/analytics/analytics-history';
 import { AnalyticsHeatmap } from '@/components/analytics/analytics-heatmap';
 import { AnalyticsInsights } from '@/components/analytics/analytics-insights';
+import { AnalyticsRankings } from '@/components/analytics/analytics-rankings';
 import { AnalyticsSummary } from '@/components/analytics/analytics-summary';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
   AnalyticsServerError,
   getServerAnalyticsHeatmap,
+  getServerAnalyticsCategories,
+  getServerAnalyticsHabits,
   getServerAnalyticsHistory,
   getServerAnalyticsInsights,
   getServerAnalyticsSummary,
@@ -58,14 +61,18 @@ export default async function AnalyticsPage({
   let history;
   let insights;
   let heatmap;
+  let categories;
+  let habits;
   let invalidQuery = false;
 
   try {
-    [data, history, insights, heatmap] = await Promise.all([
+    [data, history, insights, heatmap, categories, habits] = await Promise.all([
       getServerAnalyticsSummary(period, date),
       getServerAnalyticsHistory(historyPeriod),
       getServerAnalyticsInsights(historyPeriod),
       getServerAnalyticsHeatmap(heatmapPeriod),
+      getServerAnalyticsCategories(historyPeriod),
+      getServerAnalyticsHabits(historyPeriod),
     ]);
   } catch (error) {
     if (error instanceof AnalyticsServerError && error.status === 401) {
@@ -78,7 +85,15 @@ export default async function AnalyticsPage({
     }
   }
 
-  if (invalidQuery || !data || !history || !insights || !heatmap) {
+  if (
+    invalidQuery ||
+    !data ||
+    !history ||
+    !insights ||
+    !heatmap ||
+    !categories ||
+    !habits
+  ) {
     return (
       <section
         className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
@@ -121,6 +136,7 @@ export default async function AnalyticsPage({
         selectedDate={date}
         summaryPeriod={period}
       />
+      <AnalyticsRankings categories={categories} habits={habits} />
     </div>
   );
 }

@@ -298,6 +298,25 @@ describe('backend foundation', () => {
     }
   });
 
+  it.each(['categories', 'habits'])(
+    'validates, protects, and documents analytics %s rankings',
+    async (resource) => {
+      const unauthorized = await app.inject({
+        method: 'GET',
+        url: `/api/v1/analytics/${resource}`,
+      });
+      const invalid = await app.inject({
+        method: 'GET',
+        url: `/api/v1/analytics/${resource}?period=365d`,
+      });
+      expect(unauthorized.statusCode).toBe(401);
+      expect(invalid.statusCode).toBe(400);
+      expect(
+        app.swagger().paths?.[`/api/v1/analytics/${resource}`]?.get,
+      ).toBeDefined();
+    },
+  );
+
   it('validates habit collection query parameters and detail UUIDs', async () => {
     const invalidQueries = await Promise.all(
       [

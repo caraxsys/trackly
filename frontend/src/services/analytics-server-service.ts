@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 
 import { getInternalApiUrl } from '@/lib/server-environment';
 import type {
+  AnalyticsCategoryRankings,
+  AnalyticsHabitRankings,
   AnalyticsHeatmapData,
   AnalyticsHeatmapPeriod,
   AnalyticsHistoryData,
@@ -79,6 +81,32 @@ export async function getServerAnalyticsHeatmap(
 
   return payload.data;
 }
+
+async function getServerAnalyticsRanking<T>(
+  resource: 'categories' | 'habits',
+  period: AnalyticsHistoryPeriod,
+) {
+  const cookieStore = await cookies();
+  const url = new URL(`/api/v1/analytics/${resource}`, getInternalApiUrl());
+  url.searchParams.set('period', period);
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: { accept: 'application/json', cookie: cookieStore.toString() },
+  });
+  const payload = (await response.json()) as
+    ApiSuccessResponse<T> | ApiErrorResponse;
+  if (!response.ok || !payload.success)
+    throw new AnalyticsServerError(
+      response.status,
+      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
+    );
+  return payload.data;
+}
+
+export const getServerAnalyticsCategories = (period: AnalyticsHistoryPeriod) =>
+  getServerAnalyticsRanking<AnalyticsCategoryRankings>('categories', period);
+export const getServerAnalyticsHabits = (period: AnalyticsHistoryPeriod) =>
+  getServerAnalyticsRanking<AnalyticsHabitRankings>('habits', period);
 
 export async function getServerAnalyticsHistory(
   period: AnalyticsHistoryPeriod,

@@ -6,6 +6,7 @@ import type {
   AnalyticsHeatmapQuery,
   AnalyticsHistoryQuery,
   AnalyticsInsightsQuery,
+  AnalyticsRankingQuery,
   AnalyticsSummaryQuery,
 } from './analytics.schema.js';
 import type { AnalyticsQueryService } from './analytics.service.js';
@@ -22,6 +23,30 @@ export function createAnalyticsQueryController(
   }
 
   return {
+    categories: async (
+      request: FastifyRequest<{ Querystring: AnalyticsRankingQuery }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await analyticsService.getCategoryRankings({
+          userId,
+          period: request.query.period,
+          onTimezoneFallback: timezoneFallback(request),
+        }),
+      );
+    },
+    habits: async (
+      request: FastifyRequest<{ Querystring: AnalyticsRankingQuery }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await analyticsService.getHabitRankings({
+          userId,
+          period: request.query.period,
+          onTimezoneFallback: timezoneFallback(request),
+        }),
+      );
+    },
     heatmap: async (
       request: FastifyRequest<{ Querystring: AnalyticsHeatmapQuery }>,
     ) => {

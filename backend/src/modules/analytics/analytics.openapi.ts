@@ -71,6 +71,90 @@ export const analyticsHeatmapJsonSchema = {
   },
 } as const;
 
+const rankingMetricProperties = {
+  scheduledCount: { type: 'integer', minimum: 0 },
+  completedCount: { type: 'integer', minimum: 0 },
+  completionRate: { type: 'number', minimum: 0, maximum: 100 },
+  totalTargetCount: { type: 'integer', minimum: 0 },
+  totalCompletedCount: { type: 'integer', minimum: 0 },
+  progressRate: { type: 'number', minimum: 0, maximum: 100 },
+} as const;
+
+const rankingBaseProperties = {
+  period: { type: 'string', enum: ['7d', '30d', '90d'] },
+  startDate: { type: 'string', format: 'date' },
+  endDate: { type: 'string', format: 'date' },
+  hasActivity: { type: 'boolean' },
+} as const;
+
+export const analyticsCategoriesJsonSchema = {
+  type: 'object',
+  required: ['period', 'startDate', 'endDate', 'hasActivity', 'categories'],
+  properties: {
+    ...rankingBaseProperties,
+    categories: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'categoryId',
+          'name',
+          ...Object.keys(rankingMetricProperties),
+          'activeHabitCount',
+        ],
+        properties: {
+          categoryId: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          ...rankingMetricProperties,
+          activeHabitCount: { type: 'integer', minimum: 1 },
+        },
+      },
+    },
+  },
+} as const;
+
+export const analyticsHabitsJsonSchema = {
+  type: 'object',
+  required: ['period', 'startDate', 'endDate', 'hasActivity', 'habits'],
+  properties: {
+    ...rankingBaseProperties,
+    habits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'habitId',
+          'name',
+          'category',
+          ...Object.keys(rankingMetricProperties),
+          'currentStreak',
+          'longestStreak',
+        ],
+        properties: {
+          habitId: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          category: {
+            anyOf: [
+              {
+                type: 'object',
+                required: ['categoryId', 'name'],
+                properties: {
+                  categoryId: { type: 'string', format: 'uuid' },
+                  name: { type: 'string' },
+                },
+              },
+              { type: 'null' },
+            ],
+          },
+          ...rankingMetricProperties,
+          currentStreak: { type: 'integer', minimum: 0 },
+          longestStreak: { type: 'integer', minimum: 0 },
+        },
+      },
+    },
+  },
+} as const;
+
 const analyticsHistoryPointJsonSchema = {
   type: 'object',
   required: [

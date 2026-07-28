@@ -79,6 +79,39 @@ function repeat<T>(value: T, length: number): T[] {
 }
 
 describe('analytics query service', () => {
+  it('ranks habits and rolls category totals deterministically', async () => {
+    const { service } = setup([
+      record({
+        id: 'b',
+        name: 'Walk',
+        category: { categoryId: 'cat-1', name: 'Health' },
+        checkIns: [{ date: '2026-07-28', completedCount: 1 }],
+      }),
+      record({
+        id: 'a',
+        name: 'Drink',
+        category: { categoryId: 'cat-1', name: 'Health' },
+        targetCount: 2,
+        checkIns: [{ date: '2026-07-28', completedCount: 1 }],
+      }),
+    ]);
+    const options = {
+      userId: 'user-1',
+      period: '7d' as const,
+      now: new Date('2026-07-28T12:00:00Z'),
+    };
+    const habits = await service.getHabitRankings(options);
+    const categories = await service.getCategoryRankings(options);
+    expect(habits.habits.map(({ name }) => name)).toEqual(['Walk', 'Drink']);
+    expect(categories.categories[0]).toMatchObject({
+      name: 'Health',
+      activeHabitCount: 2,
+      scheduledCount: 14,
+      completedCount: 1,
+      totalTargetCount: 21,
+      totalCompletedCount: 2,
+    });
+  });
   it('assigns deterministic heatmap levels at exact percentage boundaries', () => {
     expect(resolveHeatmapLevel(0, 0)).toBe(0);
     expect(resolveHeatmapLevel(10000, 2499)).toBe(1);
