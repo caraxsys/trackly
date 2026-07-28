@@ -1,7 +1,24 @@
-import { and, asc, desc, eq, gte, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 import type { Database } from '../../db/client.js';
-import { categories, goals, goalSteps, habits } from '../../db/schema/index.js';
+import {
+  categories,
+  goals,
+  goalSteps,
+  habitCheckIns,
+  habits,
+} from '../../db/schema/index.js';
 import { calculateCompletionPercentage } from '../today/today.summary.js';
 import type { TodayGoal } from './goal.types.js';
 
@@ -70,6 +87,42 @@ export function createGoalRepository(database: Database) {
           ),
         )
         .orderBy(desc(goals.startDate), desc(goals.createdAt), asc(goals.id));
+    },
+
+    async progressForGoals(
+      userId: string,
+      goalIds: string[],
+      localToday: string,
+    ) {
+      if (goalIds.length === 0) return new Map<string, number>();
+      const rows = await database
+        .select({
+          goalId: goals.id,
+          currentCount:
+            sql<number>`coalesce(sum(${habitCheckIns.completedCount}), 0)::int`.mapWith(
+              Number,
+            ),
+        })
+        .from(goals)
+        .leftJoin(
+          habitCheckIns,
+          and(
+            eq(habitCheckIns.habitId, goals.habitId),
+            eq(habitCheckIns.userId, userId),
+            gte(habitCheckIns.checkInDate, goals.startDate),
+            lte(habitCheckIns.checkInDate, goals.endDate),
+            lte(habitCheckIns.checkInDate, localToday),
+          ),
+        )
+        .where(
+          and(
+            eq(goals.userId, userId),
+            isNull(goals.deletedAt),
+            inArray(goals.id, goalIds),
+          ),
+        )
+        .groupBy(goals.id);
+      return new Map(rows.map((row) => [row.goalId, row.currentCount]));
     },
 
     async verifyHabitOwnership(userId: string, habitId: string) {

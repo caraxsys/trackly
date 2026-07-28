@@ -11,6 +11,13 @@ export interface Goal {
   status: GoalStatus;
   createdAt: string;
   updatedAt: string;
+  progress: {
+    currentCount: number;
+    targetCount: number;
+    remainingCount: number;
+    progressRate: number;
+    isTargetReached: boolean;
+  };
 }
 export interface GoalPayload {
   habitId: string;

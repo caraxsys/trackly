@@ -1,5 +1,11 @@
 import { AppError } from '../../errors/app-error.js';
 import { ErrorCode } from '../../errors/error-codes.js';
+import {
+  getLocalCalendarDate,
+  resolveTimezone,
+} from '../../lib/date/timezone.js';
+import { percentageRate } from '../../lib/metrics/rate.js';
+import type { PreferenceRepository } from '../preferences/preference.repository.js';
 import type { GoalRepository } from './goal.repository.js';
 import type {
   GoalCreateBody,
@@ -16,25 +22,67 @@ const invalid = (message: string) =>
     message,
   });
 
-export function createGoalService(repository: GoalRepository) {
+export function deriveGoalProgress(currentCount: number, targetCount: number) {
+  return {
+    currentCount,
+    targetCount,
+    remainingCount: Math.max(targetCount - currentCount, 0),
+    progressRate: percentageRate(currentCount, targetCount),
+    isTargetReached: currentCount >= targetCount,
+  };
+}
+
+export function createGoalService(
+  repository: GoalRepository,
+  preferenceRepository?: PreferenceRepository,
+) {
   const validateRange = (startDate: string, endDate: string) => {
     if (endDate < startDate)
       throw invalid('endDate must be on or after startDate.');
   };
+  const localToday = async (userId: string) =>
+    getLocalCalendarDate(
+      new Date(),
+      resolveTimezone(
+        preferenceRepository
+          ? await preferenceRepository.findTimezone(userId)
+          : null,
+      ),
+    );
+  const withProgress = async <
+    T extends { id: string; targetCount: number; startDate: string },
+  >(
+    userId: string,
+    values: T[],
+  ) => {
+    const counts = await repository.progressForGoals(
+      userId,
+      values.map(({ id }) => id),
+      await localToday(userId),
+    );
+    return values.map((value) => {
+      const currentCount = counts.get(value.id) ?? 0;
+      return {
+        ...value,
+        progress: deriveGoalProgress(currentCount, value.targetCount),
+      };
+    });
+  };
 
   return {
     async list(userId: string, query: GoalListQuery) {
-      return repository.listForUser(userId, {
+      const goals = await repository.listForUser(userId, {
         ...(query.status ? { status: query.status } : {}),
         ...(query.habitId ? { habitId: query.habitId } : {}),
         ...(query.startDate ? { overlapsStartDate: query.startDate } : {}),
         ...(query.endDate ? { overlapsEndDate: query.endDate } : {}),
       });
+      return withProgress(userId, goals);
     },
     async detail(userId: string, id: string) {
       const goal = await repository.findByIdForUser(userId, id);
       if (!goal) throw notFound();
-      return goal;
+      return (await withProgress(userId, [goal]))[0]!;
     },
     async create(userId: string, input: GoalCreateBody) {
       validateRange(input.startDate, input.endDate);
@@ -45,7 +93,7 @@ export function createGoalService(repository: GoalRepository) {
         name: input.name.trim(),
       });
       if (!created) throw new Error('Goal insert did not return a row.');
-      return created;
+      return (await withProgress(userId, [created]))[0]!;
     },
     async update(userId: string, id: string, input: GoalUpdateBody) {
       const current = await repository.findByIdForUser(userId, id);
@@ -70,7 +118,7 @@ export function createGoalService(repository: GoalRepository) {
         ...(input.status ? { status: input.status } : {}),
       });
       if (!updated) throw notFound();
-      return updated;
+      return (await withProgress(userId, [updated]))[0]!;
     },
     async remove(userId: string, id: string) {
       const deleted = await repository.softDelete(userId, id);

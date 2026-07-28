@@ -40,3 +40,23 @@ Authenticated frontend routes are `/goals`, `/goals/new`, `/goals/[id]`, and
 `/goals/[id]/edit`. They provide filtering, canonical detail, accessible
 create/edit forms, explicit delete confirmation, and safe empty/error states.
 Goal progress calculation and display remain out of scope until Milestone 5.2.
+
+## Request-time progress
+
+Goal reads derive progress from the sum of absolute `completedCount` values for
+the linked owned Habit. Only check-ins within the inclusive Goal start/end
+dates and no later than user-local today contribute. Dates remain logical
+calendar dates, so daylight-saving transitions do not change range membership.
+Future Goals and future check-ins contribute zero; inactive Habits retain their
+historical contribution.
+
+The read-only `progress` response contains `currentCount`, `targetCount`,
+`remainingCount`, `progressRate`, and `isTargetReached`. Rates use Trackly's
+0–100 percentage convention rounded to two decimals. Counts are not capped:
+over-target Goals may exceed 100%, while remaining count never drops below
+zero. Manual status is independent, is never updated automatically, and may
+differ from the derived achievement state.
+
+Progress is computed on every request and is never persisted. Goal collections
+use one grouped check-in query for all returned Goals, so query count remains
+bounded when multiple Goals share a Habit or use different ranges.

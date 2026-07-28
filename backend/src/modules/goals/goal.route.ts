@@ -6,6 +6,7 @@ import {
   successResponseJsonSchema,
 } from '../../http/openapi-schemas.js';
 import { validateRequest } from '../../validation/validate.js';
+import { createPreferenceRepository } from '../preferences/preference.repository.js';
 import { createGoalController } from './goal.controller.js';
 import { goalJsonSchema, goalStatusJsonSchema } from './goal.openapi.js';
 import { createGoalRepository } from './goal.repository.js';
@@ -22,7 +23,10 @@ import {
 import { createGoalService } from './goal.service.js';
 
 const controller = createGoalController(
-  createGoalService(createGoalRepository(database)),
+  createGoalService(
+    createGoalRepository(database),
+    createPreferenceRepository(database),
+  ),
 );
 const params = {
   type: 'object',
