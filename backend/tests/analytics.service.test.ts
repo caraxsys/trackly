@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { addCalendarDays } from '../src/lib/date/calendar-date.js';
 import {
   createAnalyticsQueryService,
+  deriveAnalyticsInsights,
   resolveAnalyticsRange,
 } from '../src/modules/analytics/analytics.service.js';
-import type { AnalyticsHabitRecord } from '../src/modules/analytics/analytics.types.js';
+import type {
+  AnalyticsHabitRecord,
+  AnalyticsHistory,
+} from '../src/modules/analytics/analytics.types.js';
 
 function record(
   overrides: Partial<AnalyticsHabitRecord> = {},
@@ -35,6 +40,40 @@ function setup(
   });
 
   return { service, listHabitRecords };
+}
+
+function insightHistory(
+  rates: Array<number | null>,
+  period: AnalyticsHistory['period'] = '7d',
+): AnalyticsHistory {
+  const startDate = '2026-07-20';
+  return {
+    period,
+    granularity: 'day',
+    startDate,
+    endDate: addCalendarDays(startDate, rates.length - 1),
+    summary: {
+      averageCompletionRate: 0,
+      averageProgressRate: 0,
+      scheduledCount: 0,
+      completedCount: 0,
+      totalTargetCount: 0,
+      totalCompletedCount: 0,
+    },
+    history: rates.map((rate, index) => ({
+      date: addCalendarDays(startDate, index),
+      scheduledCount: rate === null ? 0 : 2,
+      completedCount: rate === null ? 0 : rate === 100 ? 2 : rate > 0 ? 1 : 0,
+      completionRate: rate ?? 0,
+      totalTargetCount: rate === null ? 0 : 2,
+      totalCompletedCount: rate === null ? 0 : (rate / 100) * 2,
+      progressRate: rate ?? 0,
+    })),
+  };
+}
+
+function repeat<T>(value: T, length: number): T[] {
+  return Array.from({ length }, () => value);
 }
 
 describe('analytics query service', () => {
@@ -265,6 +304,161 @@ describe('analytics query service', () => {
       userId: 'user-1',
       period: '7d',
       granularity: 'day',
+      now: new Date('2026-07-26T18:00:00.000Z'),
+    });
+
+    expect(result.endDate).toBe('2026-07-27');
+    expect(listHabitRecords).toHaveBeenCalledWith(
+      'user-1',
+      '2026-07-21',
+      '2026-07-27',
+    );
+  });
+});
+
+describe('analytics insights', () => {
+  it('returns nullable insight values when there are no active days', () => {
+    expect(
+      deriveAnalyticsInsights(
+        insightHistory([null, null, null, null, null, null, null]),
+      ),
+    ).toEqual({
+      period: '7d',
+      startDate: '2026-07-20',
+      endDate: '2026-07-26',
+      hasActivity: false,
+      insights: {
+        bestDay: null,
+        lowestDay: null,
+        mostProductiveWeekday: null,
+        consistency: null,
+        trend: null,
+      },
+    });
+  });
+
+  it('chooses recent tied best and lowest days and Monday-first weekday ties', () => {
+    const result = deriveAnalyticsInsights(
+      insightHistory([100, null, 50, null, null, null, 100]),
+    );
+
+    expect(result.insights.bestDay).toEqual({
+      date: '2026-07-26',
+      completionRate: 100,
+    });
+    expect(result.insights.lowestDay).toEqual({
+      date: '2026-07-22',
+      completionRate: 50,
+    });
+    expect(result.insights.mostProductiveWeekday).toEqual({
+      weekday: 'monday',
+      averageCompletionRate: 100,
+    });
+  });
+
+  it('derives fully completed and partial-day consistency', () => {
+    const result = deriveAnalyticsInsights(
+      insightHistory([100, 50, null, 100, 0, null, null]),
+    );
+
+    expect(result.insights.consistency).toEqual({
+      fullyCompletedDays: 2,
+      activeDays: 4,
+      consistencyRate: 50,
+    });
+  });
+
+  it.each([
+    {
+      rates: [null, 20, 20, 20, 60, 60, 60],
+      direction: 'up',
+      current: 60,
+      previous: 20,
+      change: 40,
+    },
+    {
+      rates: [null, 80, 80, 80, 30, 30, 30],
+      direction: 'down',
+      current: 30,
+      previous: 80,
+      change: -50,
+    },
+    {
+      rates: [null, 50, 50, 50, 50, 50, 50],
+      direction: 'flat',
+      current: 50,
+      previous: 50,
+      change: 0,
+    },
+  ])(
+    'returns a $direction equal-window trend',
+    ({ rates, direction, current, previous, change }) => {
+      expect(
+        deriveAnalyticsInsights(insightHistory(rates)).insights.trend,
+      ).toEqual({
+        direction,
+        currentAverageCompletionRate: current,
+        previousAverageCompletionRate: previous,
+        changePercentagePoints: change,
+      });
+    },
+  );
+
+  it('returns insufficient trend data for one active day', () => {
+    const result = deriveAnalyticsInsights(
+      insightHistory([null, null, 50, null, null, null, null]),
+    );
+
+    expect(result.hasActivity).toBe(true);
+    expect(result.insights.trend).toEqual({
+      direction: 'insufficient-data',
+      currentAverageCompletionRate: null,
+      previousAverageCompletionRate: 50,
+      changePercentagePoints: null,
+    });
+  });
+
+  it.each([
+    {
+      period: '30d' as const,
+      rates: [
+        ...repeat<number | null>(null, 16),
+        ...repeat(20, 7),
+        ...repeat(80, 7),
+      ],
+      current: 80,
+      previous: 20,
+    },
+    {
+      period: '90d' as const,
+      rates: [
+        ...repeat<number | null>(null, 30),
+        ...repeat(40, 30),
+        ...repeat(60, 30),
+      ],
+      current: 60,
+      previous: 40,
+    },
+  ])(
+    'uses documented equal windows for $period',
+    ({ period, rates, current, previous }) => {
+      expect(
+        deriveAnalyticsInsights(insightHistory(rates, period)).insights.trend,
+      ).toMatchObject({
+        direction: 'up',
+        currentAverageCompletionRate: current,
+        previousAverageCompletionRate: previous,
+        changePercentagePoints: current - previous,
+      });
+    },
+  );
+
+  it('reuses timezone-aware history when querying insights', async () => {
+    const { service, listHabitRecords } = setup([], 'Asia/Jakarta');
+
+    const result = await service.getInsights({
+      userId: 'user-1',
+      period: '7d',
       now: new Date('2026-07-26T18:00:00.000Z'),
     });
 

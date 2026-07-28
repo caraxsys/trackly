@@ -26,6 +26,28 @@ including zero-activity dates. Counts and target totals are summed across the
 complete range. The history query reuses the summary repository and does not
 persist derived data.
 
+`GET /api/v1/analytics/insights` accepts the same `7d`, `30d`, or `90d`
+period, defaulting to `30d`. It derives deterministic observations from the
+existing history aggregation, so timezone, scheduling, completion, ownership,
+and capped-progress rules are not duplicated.
+
+Insight calculations exclude dates without scheduled occurrences:
+
+- Best and lowest days use completion rate; ties select the most recent date.
+- Strongest weekday averages active-day completion rates and resolves equal
+  averages in Monday-to-Sunday order.
+- A fully completed day has every scheduled occurrence completed.
+- Consistency is fully completed active days divided by all active days.
+- Trend uses equal calendar windows: 3 recent versus 3 previous days for 7D,
+  7 versus 7 for 30D, and 30 versus 30 for 90D. Each window must contain at
+  least one active day.
+- Trend averages only active days. Change is current minus previous percentage
+  points, rounded to two places; a rounded zero is `flat`.
+
+No activity produces `hasActivity=false` and nullable insight values. Activity
+with an incomplete comparison window produces `insufficient-data` with null
+change and a nullable missing-window average.
+
 ## Metrics
 
 Each scheduled Habit/date pair is one occurrence:
@@ -64,7 +86,10 @@ Responsive Recharts line visualizations display Completion Rate and Progress
 Rate. Their source values come directly from the backend; a screen-reader-only
 table exposes every date and both rates without relying on the visual chart.
 Historical summary cards and a dedicated no-activity state accompany the
-trends.
+trends. The Insights section is fetched server-side for the same
+`historyPeriod` and presents Best Day, Strongest Weekday, Consistency, and
+Recent Trend as primary cards; Lowest Day remains supporting text. No domain
+insight calculation occurs in the frontend.
 
 Custom ranges, weekly/monthly history granularity, heatmaps, category or goal
 analytics, exports, forecasting, and persisted analytics remain out of scope.

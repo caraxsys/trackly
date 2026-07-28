@@ -10,13 +10,16 @@ import { createPreferenceRepository } from '../preferences/preference.repository
 import { createAnalyticsQueryController } from './analytics.controller.js';
 import {
   analyticsHistoryJsonSchema,
+  analyticsInsightsJsonSchema,
   analyticsSummaryJsonSchema,
 } from './analytics.openapi.js';
 import { createAnalyticsQueryRepository } from './analytics.repository.js';
 import {
   analyticsHistoryQuerySchema,
+  analyticsInsightsQuerySchema,
   analyticsSummaryQuerySchema,
   type AnalyticsHistoryQuery,
+  type AnalyticsInsightsQuery,
   type AnalyticsSummaryQuery,
 } from './analytics.schema.js';
 import { createAnalyticsQueryService } from './analytics.service.js';
@@ -99,5 +102,37 @@ export function analyticsRoutes(app: FastifyInstance) {
       },
     },
     analyticsController.history,
+  );
+
+  app.get<{ Querystring: AnalyticsInsightsQuery }>(
+    '/analytics/insights',
+    {
+      preValidation: validateRequest({ query: analyticsInsightsQuerySchema }),
+      schema: {
+        tags: ['analytics'],
+        summary:
+          "Get the authenticated user's deterministic analytics insights",
+        description:
+          'Derives best and lowest active days, strongest weekday, consistency, and equal-window completion trend from the existing user-local daily history.',
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            period: {
+              type: 'string',
+              enum: ['7d', '30d', '90d'],
+              default: '30d',
+            },
+          },
+        },
+        response: {
+          200: successResponseJsonSchema(analyticsInsightsJsonSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    analyticsController.insights,
   );
 }
