@@ -29,9 +29,39 @@ export const goalCreateSchema = goalSchema
     path: ['endDate'],
   });
 
-export const goalUpdateSchema = goalCreateSchema
-  .omit({ habitId: true })
-  .partial()
-  .extend({ status: goalStatusSchema.optional() });
-
 export type GoalStatus = z.infer<typeof goalStatusSchema>;
+
+export const goalParamsSchema = z.object({ id: z.uuid() });
+export const goalListQuerySchema = z
+  .object({
+    status: goalStatusSchema.optional(),
+    habitId: z.uuid().optional(),
+    startDate: calendarDateSchema.optional(),
+    endDate: calendarDateSchema.optional(),
+  })
+  .refine(
+    ({ startDate, endDate }) => !startDate || !endDate || endDate >= startDate,
+    { message: 'endDate must be on or after startDate.', path: ['endDate'] },
+  );
+
+export const goalCreateBodySchema = goalCreateSchema.extend({
+  status: goalStatusSchema.default('active'),
+});
+
+export const goalUpdateBodySchema = z
+  .object({
+    habitId: z.uuid().optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    targetCount: z.int().min(1).optional(),
+    startDate: calendarDateSchema.optional(),
+    endDate: calendarDateSchema.optional(),
+    status: goalStatusSchema.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one field is required.',
+  });
+
+export type GoalParams = z.infer<typeof goalParamsSchema>;
+export type GoalListQuery = z.infer<typeof goalListQuerySchema>;
+export type GoalCreateBody = z.infer<typeof goalCreateBodySchema>;
+export type GoalUpdateBody = z.infer<typeof goalUpdateBodySchema>;
