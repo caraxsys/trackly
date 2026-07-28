@@ -275,6 +275,29 @@ describe('backend foundation', () => {
     }
   });
 
+  it('defaults, validates, protects, and documents analytics heatmap', async () => {
+    const [defaultQuery, invalidPeriod] = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/v1/analytics/heatmap' }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/heatmap?period=30d',
+      }),
+    ]);
+
+    expect(defaultQuery.statusCode).toBe(401);
+    expect(defaultQuery.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+    expect(invalidPeriod.statusCode).toBe(400);
+
+    const operation = app.swagger().paths?.['/api/v1/analytics/heatmap']?.get;
+    expect(operation).toBeDefined();
+    for (const status of ['200', '400', '401', '500']) {
+      expect(operation?.responses?.[status]).toBeDefined();
+    }
+  });
+
   it('validates habit collection query parameters and detail UUIDs', async () => {
     const invalidQueries = await Promise.all(
       [

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
   return {
     getServerSession: vi.fn(),
     getServerAnalyticsHistory: vi.fn(),
+    getServerAnalyticsHeatmap: vi.fn(),
     getServerAnalyticsInsights: vi.fn(),
     getServerAnalyticsSummary: vi.fn(),
     redirect: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/lib/auth-session', () => ({
 }));
 vi.mock('@/services/analytics-server-service', () => ({
   getServerAnalyticsHistory: mocks.getServerAnalyticsHistory,
+  getServerAnalyticsHeatmap: mocks.getServerAnalyticsHeatmap,
   getServerAnalyticsInsights: mocks.getServerAnalyticsInsights,
   getServerAnalyticsSummary: mocks.getServerAnalyticsSummary,
   AnalyticsServerError: mocks.AnalyticsServerError,
@@ -103,6 +105,19 @@ describe('Analytics route states', () => {
         trend: null,
       },
     });
+    mocks.getServerAnalyticsHeatmap.mockResolvedValue({
+      period: '365d',
+      startDate: '2025-07-29',
+      endDate: '2026-07-28',
+      summary: {
+        activeDays: 0,
+        completedDays: 0,
+        totalScheduledCount: 0,
+        totalCompletedCount: 0,
+        averageCompletionRate: 0,
+      },
+      days: [],
+    });
 
     render(
       await AnalyticsPage({
@@ -112,6 +127,7 @@ describe('Analytics route states', () => {
 
     expect(mocks.getServerAnalyticsHistory).toHaveBeenCalledWith('30d');
     expect(mocks.getServerAnalyticsInsights).toHaveBeenCalledWith('30d');
+    expect(mocks.getServerAnalyticsHeatmap).toHaveBeenCalledWith('365d');
     expect(
       screen.getByRole('navigation', { name: 'Analytics history period' }),
     ).toBeVisible();

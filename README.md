@@ -233,6 +233,11 @@ timezone rules, exclusions, and architecture.
 Milestone 4.0B completed real browser, Docker, PostgreSQL, Swagger, responsive,
 accessibility, and regression validation for this Analytics summary flow.
 
+Analytics also provides an authenticated, timezone-aware contribution heatmap
+at `GET /api/v1/analytics/heatmap` for the latest 90, 180, or 365 local
+calendar days. The `/analytics` page preserves this independent selection as
+`heatmapPeriod`; all daily values are derived on demand and never persisted.
+
 ## Habit API
 
 The authenticated Habit API supports user-scoped collection/detail reads and

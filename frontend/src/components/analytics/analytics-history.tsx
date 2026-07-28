@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { formatShortDate } from '@/lib/today-format';
 import type {
   AnalyticsHistoryData,
+  AnalyticsHeatmapPeriod,
   AnalyticsHistoryPeriod,
   AnalyticsPeriod,
 } from '@/types/analytics';
@@ -38,12 +39,14 @@ function historyHref(
   historyPeriod: AnalyticsHistoryPeriod,
   summaryPeriod: AnalyticsPeriod,
   selectedDate?: string,
+  heatmapPeriod?: AnalyticsHeatmapPeriod,
 ) {
   const query = new URLSearchParams({
     period: summaryPeriod,
     historyPeriod,
   });
   if (selectedDate) query.set('date', selectedDate);
+  if (heatmapPeriod) query.set('heatmapPeriod', heatmapPeriod);
   return `/analytics?${query.toString()}`;
 }
 
@@ -109,10 +112,12 @@ function TrendChart({
 export function AnalyticsHistory({
   data,
   selectedDate,
+  heatmapPeriod,
   summaryPeriod,
 }: {
   data: AnalyticsHistoryData;
   selectedDate?: string;
+  heatmapPeriod?: AnalyticsHeatmapPeriod;
   summaryPeriod: AnalyticsPeriod;
 }) {
   const metrics = [
@@ -161,7 +166,12 @@ export function AnalyticsHistory({
                   ? 'bg-primary text-primary-foreground'
                   : 'border-border hover:bg-muted border'
               }`}
-              href={historyHref(period, summaryPeriod, selectedDate)}
+              href={historyHref(
+                period,
+                summaryPeriod,
+                selectedDate,
+                heatmapPeriod,
+              )}
               key={period}
             >
               {period}

@@ -1,6 +1,7 @@
 export type AnalyticsPeriod = 'day' | 'week' | 'month';
 export type AnalyticsHistoryPeriod = '7d' | '30d' | '90d';
 export type AnalyticsHistoryGranularity = 'day';
+export type AnalyticsHeatmapPeriod = '90d' | '180d' | '365d';
 
 export interface AnalyticsHabitRecord {
   checkIns: Array<{ completedCount: number; date: string }>;
@@ -90,4 +91,24 @@ export interface AnalyticsInsights {
   };
   period: AnalyticsHistoryPeriod;
   startDate: string;
+}
+
+export interface AnalyticsHeatmap {
+  days: Array<{
+    completedCount: number;
+    completionRate: number;
+    date: string;
+    level: 0 | 1 | 2 | 3 | 4;
+    scheduledCount: number;
+  }>;
+  endDate: string;
+  period: AnalyticsHeatmapPeriod;
+  startDate: string;
+  summary: {
+    activeDays: number;
+    averageCompletionRate: number;
+    completedDays: number;
+    totalCompletedCount: number;
+    totalScheduledCount: number;
+  };
 }

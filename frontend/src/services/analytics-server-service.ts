@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 
 import { getInternalApiUrl } from '@/lib/server-environment';
 import type {
+  AnalyticsHeatmapData,
+  AnalyticsHeatmapPeriod,
   AnalyticsHistoryData,
   AnalyticsHistoryPeriod,
   AnalyticsInsightsData,
@@ -40,6 +42,33 @@ export async function getServerAnalyticsSummary(
   });
   const payload = (await response.json()) as
     ApiSuccessResponse<AnalyticsSummaryData> | ApiErrorResponse;
+
+  if (!response.ok || !payload.success) {
+    throw new AnalyticsServerError(
+      response.status,
+      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
+    );
+  }
+
+  return payload.data;
+}
+
+export async function getServerAnalyticsHeatmap(
+  period: AnalyticsHeatmapPeriod,
+) {
+  const cookieStore = await cookies();
+  const url = new URL('/api/v1/analytics/heatmap', getInternalApiUrl());
+  url.searchParams.set('period', period);
+
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      accept: 'application/json',
+      cookie: cookieStore.toString(),
+    },
+  });
+  const payload = (await response.json()) as
+    ApiSuccessResponse<AnalyticsHeatmapData> | ApiErrorResponse;
 
   if (!response.ok || !payload.success) {
     throw new AnalyticsServerError(

@@ -1688,6 +1688,30 @@ describe('core database domain schema', () => {
       },
     });
     expect(JSON.stringify(insights)).not.toContain('Analytics foreign');
+
+    const heatmap = await analyticsService().getHeatmap({
+      userId,
+      period: '90d',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    expect(heatmap.days).toHaveLength(90);
+    expect(heatmap.endDate).toBe('2026-08-02');
+    expect(
+      heatmap.days.find(({ date }) => date === '2026-07-27'),
+    ).toMatchObject({
+      scheduledCount: 1,
+      completedCount: 1,
+      completionRate: 100,
+      level: 4,
+    });
+    expect(heatmap.summary).toMatchObject({
+      activeDays: 28,
+      completedDays: 1,
+      totalScheduledCount: 28,
+      totalCompletedCount: 1,
+      averageCompletionRate: 3.57,
+    });
+    expect(JSON.stringify(heatmap)).not.toContain('Analytics foreign');
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {

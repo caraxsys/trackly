@@ -1,5 +1,26 @@
 export type AnalyticsPeriod = 'day' | 'week' | 'month';
 export type AnalyticsHistoryPeriod = '7d' | '30d' | '90d';
+export type AnalyticsHeatmapPeriod = '90d' | '180d' | '365d';
+
+export interface AnalyticsHeatmapData {
+  period: AnalyticsHeatmapPeriod;
+  startDate: string;
+  endDate: string;
+  summary: {
+    activeDays: number;
+    completedDays: number;
+    totalScheduledCount: number;
+    totalCompletedCount: number;
+    averageCompletionRate: number;
+  };
+  days: Array<{
+    date: string;
+    scheduledCount: number;
+    completedCount: number;
+    completionRate: number;
+    level: 0 | 1 | 2 | 3 | 4;
+  }>;
+}
 
 export interface AnalyticsSummaryData {
   completedCount: number;
