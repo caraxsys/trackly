@@ -33,6 +33,11 @@ uses semantic navigation, a native GET date form, a definition list, and a
 responsive card grid. It intentionally has no charts, heatmaps, streaks, or
 client-side analytics cache.
 
+Milestone 4.0B validated direct URL loading, preserved period/date state,
+browser history, loading and safe invalid-query states, responsive desktop and
+mobile layouts, focus visibility, theme modes, and console/hydration
+cleanliness against the Dockerized API.
+
 ## Route map
 
 | Route        | Purpose                               |

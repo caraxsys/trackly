@@ -230,6 +230,9 @@ responsive summary cards and URL-based period/date controls.
 See [`docs/analytics.md`](docs/analytics.md) for the contract, formulas,
 timezone rules, exclusions, and architecture.
 
+Milestone 4.0B completed real browser, Docker, PostgreSQL, Swagger, responsive,
+accessibility, and regression validation for this Analytics summary flow.
+
 ## Habit API
 
 The authenticated Habit API supports user-scoped collection/detail reads and

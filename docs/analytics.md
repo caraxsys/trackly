@@ -51,3 +51,27 @@ cards, and a zero-occurrence state provide the responsive summary.
 
 Charts, heatmaps, streaks, insights, achievements, reminders, tasks, goals, and
 broader analytics are explicitly deferred.
+
+## Integration validation
+
+Milestone 4.0B validated the complete `/analytics` flow against the Dockerized
+frontend, Fastify API, and PostgreSQL database. Seeded day, Monday–Sunday week,
+calendar-month, and zero-occurrence ranges matched the stored schedules and
+check-ins, including different completion and capped multi-target progress
+rates. Direct URLs, preserved date parameters, browser back/forward history,
+navigation, cross-user isolation, and the unchanged Insights placeholder were
+verified.
+
+Browser checks covered the loading skeleton, invalid-query and authentication
+behavior, desktop and approximately 390px layouts, horizontal overflow,
+keyboard focus visibility, semantic forms/headings/definition lists, two-place
+percentage formatting, light/dark/system themes, and console/hydration
+cleanliness. Docker checks covered PostgreSQL readiness, backend health and
+readiness, frontend responses, CORS-backed requests, Drizzle schema parity,
+and the published OpenAPI contract.
+
+Known limitations are deliberate: the page has summary cards only, does not
+cache user analytics, and exposes no charts, exports, streaks, or non-Habit
+metrics. A total backend outage follows the existing protected-route behavior
+because session resolution occurs before the Analytics request; the dedicated
+retryable Analytics error boundary remains covered by frontend tests.

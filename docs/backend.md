@@ -154,6 +154,9 @@ rounding. Three fixed queries avoid N+1 behavior; no derived analytics are
 persisted.
 
 See [`analytics.md`](analytics.md) for the endpoint contract and formulas.
+Milestone 4.0B also verified the OpenAPI schema and live endpoint registration
+against the Dockerized Fastify service, with PostgreSQL-backed integration
+fixtures confirming ownership and aggregate correctness.
 
 ## Authentication
 
