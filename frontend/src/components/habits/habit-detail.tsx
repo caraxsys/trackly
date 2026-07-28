@@ -12,14 +12,19 @@ import {
   formatTimestamp,
 } from '@/lib/habit-format';
 import { formatDisplayDate } from '@/lib/today-format';
-import type { HabitDetail as HabitDetailData } from '@/types/habit';
+import type {
+  HabitDetail as HabitDetailData,
+  HabitStreak,
+} from '@/types/habit';
 
 export function HabitDetail({
   habit,
+  streak,
   timezone,
   success,
 }: {
   habit: HabitDetailData;
+  streak: HabitStreak;
   timezone: string;
   success?: 'created' | 'updated';
 }) {
@@ -123,6 +128,38 @@ export function HabitDetail({
           </div>
         </section>
       </div>
+      <section
+        aria-labelledby="streak-heading"
+        className="border-border bg-surface rounded-xl border p-6"
+      >
+        <h2 id="streak-heading" className="text-lg font-semibold">
+          Streak
+        </h2>
+        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+          <div>
+            <dt className="text-muted-foreground text-sm">Current Streak</dt>
+            <dd className="mt-1 text-2xl font-semibold">
+              {streak.currentStreak}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-sm">Longest Streak</dt>
+            <dd className="mt-1 text-2xl font-semibold">
+              {streak.longestStreak}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-sm">
+              Last Completed Date
+            </dt>
+            <dd className="mt-1 font-medium">
+              {streak.lastCompletedDate
+                ? formatDisplayDate(streak.lastCompletedDate)
+                : 'No completed occurrences'}
+            </dd>
+          </div>
+        </dl>
+      </section>
     </div>
   );
 }

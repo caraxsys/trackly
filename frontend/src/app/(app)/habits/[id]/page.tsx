@@ -5,6 +5,7 @@ import { HabitDetail } from '@/components/habits/habit-detail';
 import { getServerSession } from '@/lib/auth-session';
 import {
   getServerHabit,
+  getServerHabitStreak,
   HabitServerError,
 } from '@/services/habit-server-service';
 
@@ -23,9 +24,13 @@ export default async function HabitDetailPage({
 
   const { id } = await params;
   let habit;
+  let streak;
 
   try {
-    habit = await getServerHabit(id);
+    [habit, streak] = await Promise.all([
+      getServerHabit(id),
+      getServerHabitStreak(id),
+    ]);
   } catch (error) {
     if (error instanceof HabitServerError && error.status === 401) {
       redirect('/login');
@@ -46,6 +51,11 @@ export default async function HabitDetailPage({
       : undefined;
 
   return (
-    <HabitDetail habit={habit} success={success} timezone={habit.timezone} />
+    <HabitDetail
+      habit={habit}
+      streak={streak}
+      success={success}
+      timezone={habit.timezone}
+    />
   );
 }

@@ -253,6 +253,11 @@ items and the Habit detail local-date projection use a reusable check-in
 control that sends absolute progress, toggles target-one habits, and provides
 bounded decrement/increment actions for larger targets.
 
+`GET /api/v1/habits/:id/streak` derives current and longest streaks plus the
+last completed logical date from owned scheduled occurrences. It ignores future
+and non-scheduled dates, supports inactive Habit history, persists no aggregate,
+and is displayed server-side on Habit Detail only.
+
 The authenticated `/today` route now renders the real dashboard server-side.
 It includes local-date greeting and navigation, daily progress, scheduled
 habits, task attention/completion groups, active goals, and polished

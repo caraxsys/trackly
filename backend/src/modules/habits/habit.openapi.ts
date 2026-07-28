@@ -176,6 +176,17 @@ export const habitCheckInDataSchema = {
   },
 };
 
+export const habitStreakDataSchema = {
+  type: 'object',
+  required: ['habitId', 'currentStreak', 'longestStreak', 'lastCompletedDate'],
+  properties: {
+    habitId: { type: 'string', format: 'uuid' },
+    currentStreak: { type: 'integer', minimum: 0 },
+    longestStreak: { type: 'integer', minimum: 0 },
+    lastCompletedDate: { type: ['string', 'null'], format: 'date' },
+  },
+};
+
 export const habitCheckInBodyJsonSchema = {
   type: 'object',
   required: ['completedCount'],
