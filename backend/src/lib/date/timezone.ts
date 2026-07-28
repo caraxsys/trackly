@@ -5,6 +5,7 @@ import {
 } from './calendar-date.js';
 
 const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+export const DEFAULT_TIMEZONE = 'UTC';
 
 function formatter(timezone: string) {
   const cached = dateFormatterCache.get(timezone);
@@ -55,7 +56,7 @@ export function isValidTimezone(timezone: string) {
 }
 
 export function resolveTimezone(timezone: string | null | undefined) {
-  return timezone && isValidTimezone(timezone) ? timezone : 'UTC';
+  return timezone && isValidTimezone(timezone) ? timezone : DEFAULT_TIMEZONE;
 }
 
 export function getLocalCalendarDate(instant: Date, timezone: string) {

@@ -678,6 +678,33 @@ describe('core database domain schema', () => {
     );
   });
 
+  it('upserts complete user preferences while preserving one row per user', async () => {
+    const userId = await createTestUser();
+    const repository = createPreferenceRepository(database);
+    await repository.upsert(userId, {
+      timezone: 'Asia/Jakarta',
+      weekStartsOn: 7,
+      dateFormat: 'dd/MM/yyyy',
+      timeFormat: '12h',
+      theme: 'dark',
+    });
+    await repository.upsert(userId, { theme: 'light' });
+
+    await expect(repository.findByUserId(userId)).resolves.toMatchObject({
+      timezone: 'Asia/Jakarta',
+      weekStartsOn: 7,
+      dateFormat: 'dd/MM/yyyy',
+      timeFormat: '12h',
+      theme: 'light',
+    });
+    expect(
+      await database.$count(
+        userPreferences,
+        eq(userPreferences.userId, userId),
+      ),
+    ).toBe(1);
+  });
+
   it('rejects ownership rows for nonexistent users', async () => {
     await expectPostgresError(
       database.insert(categories).values({

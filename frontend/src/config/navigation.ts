@@ -21,5 +21,10 @@ export const navigationItems: NavigationItem[] = [
   { label: 'Tasks', href: '/tasks', icon: CheckSquare2, mobile: true },
   { label: 'Goals', href: '/goals', icon: Target, mobile: true },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, mobile: true },
-  { label: 'Settings', href: '/settings', icon: Settings, mobile: false },
+  {
+    label: 'Settings',
+    href: '/settings/preferences',
+    icon: Settings,
+    mobile: false,
+  },
 ];

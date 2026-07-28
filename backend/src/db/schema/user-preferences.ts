@@ -17,14 +17,28 @@ export const userPreferences = pgTable(
     timezone: varchar('timezone', { length: 64 }).default('UTC').notNull(),
     weekStartsOn: integer('week_starts_on').default(1).notNull(),
     dateFormat: varchar('date_format', { length: 32 })
-      .default('YYYY-MM-DD')
+      .default('yyyy-MM-dd')
       .notNull(),
+    timeFormat: varchar('time_format', { length: 8 }).default('24h').notNull(),
+    theme: varchar('theme', { length: 8 }).default('system').notNull(),
     ...auditTimestamps(),
   },
   (table) => [
     check(
       'user_preferences_week_starts_on_check',
-      sql`${table.weekStartsOn} between 1 and 7`,
+      sql`${table.weekStartsOn} in (1, 7)`,
+    ),
+    check(
+      'user_preferences_date_format_check',
+      sql`${table.dateFormat} in ('dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd')`,
+    ),
+    check(
+      'user_preferences_time_format_check',
+      sql`${table.timeFormat} in ('12h', '24h')`,
+    ),
+    check(
+      'user_preferences_theme_check',
+      sql`${table.theme} in ('system', 'light', 'dark')`,
     ),
     uniqueIndex('user_preferences_user_id_uidx').on(table.userId),
   ],

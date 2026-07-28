@@ -358,6 +358,37 @@ describe('backend foundation', () => {
     }
   });
 
+  it('protects, validates, and documents preference routes', async () => {
+    const [getResponse, emptyPatch, invalidTimezone, unknownField] =
+      await Promise.all([
+        app.inject({ method: 'GET', url: '/api/v1/preferences' }),
+        app.inject({
+          method: 'PATCH',
+          url: '/api/v1/preferences',
+          payload: {},
+        }),
+        app.inject({
+          method: 'PATCH',
+          url: '/api/v1/preferences',
+          payload: { timezone: 'Invalid/Timezone' },
+        }),
+        app.inject({
+          method: 'PATCH',
+          url: '/api/v1/preferences',
+          payload: { userId: 'other-user' },
+        }),
+      ]);
+    expect(getResponse.statusCode).toBe(401);
+    expect(emptyPatch.statusCode).toBe(400);
+    expect(invalidTimezone.statusCode).toBe(400);
+    expect(unknownField.statusCode).toBe(400);
+    const paths = app.swagger().paths?.['/api/v1/preferences'];
+    expect(paths?.get).toBeDefined();
+    expect(paths?.patch).toBeDefined();
+    expect(JSON.stringify(paths)).toContain('"weekStartsOn"');
+    expect(JSON.stringify(paths)).toContain('"theme"');
+  });
+
   it('validates habit collection query parameters and detail UUIDs', async () => {
     const invalidQueries = await Promise.all(
       [

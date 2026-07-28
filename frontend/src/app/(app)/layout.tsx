@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 
 import { AppShell } from '@/components/layout/app-shell';
+import { PersistedTheme } from '@/components/preferences/persisted-theme';
 import { getServerSession } from '@/lib/auth-session';
+import { getServerPreferences } from '@/services/preference-server-service';
 import { redirect } from 'next/navigation';
 
 interface ApplicationLayoutProps {
@@ -17,5 +19,12 @@ export default async function ApplicationLayout({
     redirect('/login');
   }
 
-  return <AppShell user={session.user}>{children}</AppShell>;
+  const preferences = await getServerPreferences();
+
+  return (
+    <AppShell user={session.user}>
+      <PersistedTheme theme={preferences.theme} />
+      {children}
+    </AppShell>
+  );
 }

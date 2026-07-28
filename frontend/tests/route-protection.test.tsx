@@ -15,6 +15,10 @@ vi.mock('@/lib/auth-session', () => ({
   getServerSession: mocks.getServerSession,
 }));
 
+vi.mock('@/services/preference-server-service', () => ({
+  getServerPreferences: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   redirect: mocks.redirect,
 }));

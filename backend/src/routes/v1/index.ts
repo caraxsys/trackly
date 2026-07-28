@@ -13,6 +13,7 @@ import { todayRoutes } from '../../modules/today/today.route.js';
 import { habitRoutes } from '../../modules/habits/habit.route.js';
 import { analyticsRoutes } from '../../modules/analytics/analytics.route.js';
 import { goalRoutes } from '../../modules/goals/goal.route.js';
+import { preferenceRoutes } from '../../modules/preferences/preference.route.js';
 
 const diagnosticBodySchema = z.object({
   value: z.string().trim().min(1).max(100),
@@ -25,6 +26,7 @@ export async function v1Routes(app: FastifyInstance) {
   await app.register(habitRoutes);
   await app.register(analyticsRoutes);
   await app.register(goalRoutes);
+  await app.register(preferenceRoutes);
 
   app.post(
     '/diagnostics/validation',
