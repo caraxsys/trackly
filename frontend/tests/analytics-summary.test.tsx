@@ -31,18 +31,29 @@ describe('AnalyticsSummary', () => {
     expect(
       screen.getByRole('heading', { name: 'Jul 27, 2026 – Aug 2, 2026' }),
     ).toBeVisible();
-    expect(screen.getByText('66.67%')).toBeVisible();
+    expect(screen.getAllByText('66.67%')).toHaveLength(2);
     expect(screen.getByText('81.40%')).toBeVisible();
+    expect(
+      screen.getByRole('progressbar', { name: 'Completion Rate: 66.67%' }),
+    ).toHaveAttribute('aria-valuenow', '66.67');
+    expect(
+      screen.getByRole('progressbar', { name: 'Progress Rate: 81.40%' }),
+    ).toHaveAttribute('aria-valuenow', '81.4');
+    expect(
+      screen.getByRole('heading', { name: 'Detail metrics' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Momentum is building' }),
+    ).toBeVisible();
+    expect(screen.getByText('Remaining progress')).toBeVisible();
 
     for (const label of [
       'Scheduled',
       'Completed',
       'Completion Rate',
-      'Total Progress',
-      'Total Target',
       'Progress Rate',
     ]) {
-      expect(screen.getByText(label)).toBeVisible();
+      expect(screen.getAllByText(label)[0]).toBeVisible();
     }
   });
 
@@ -64,6 +75,9 @@ describe('AnalyticsSummary', () => {
     expect(
       screen.getByRole('heading', { name: 'No scheduled occurrences' }),
     ).toBeVisible();
-    expect(screen.getAllByText('0.00%')).toHaveLength(2);
+    expect(screen.getAllByText('0.00%')).toHaveLength(3);
+    expect(
+      screen.getByRole('heading', { name: 'Start with one occurrence' }),
+    ).toBeVisible();
   });
 });

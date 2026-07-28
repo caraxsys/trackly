@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { AnalyticsSummary } from '@/components/analytics/analytics-summary';
+import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
@@ -56,23 +57,20 @@ export default async function AnalyticsPage({
 
   if (invalidQuery || !data) {
     return (
-      <section
-        className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
-        role="alert"
-      >
-        <h1 className="text-foreground text-xl font-semibold">
-          That analytics range is not available
-        </h1>
-        <p className="text-muted-foreground mx-auto mt-2 max-w-md text-sm">
-          Choose day, week, or month and use a valid calendar date.
-        </p>
-        <Link
-          className="bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-medium outline-none focus-visible:ring-2"
-          href="/analytics"
-        >
-          Return to analytics
-        </Link>
-      </section>
+      <div role="alert">
+        <EmptyState
+          action={
+            <Link
+              className="bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring inline-flex rounded-lg px-4 py-2 text-sm font-medium outline-none focus-visible:ring-2"
+              href="/analytics"
+            >
+              Return to analytics
+            </Link>
+          }
+          description="Choose day, week, or month and use a valid calendar date."
+          title="That analytics range is not available"
+        />
+      </div>
     );
   }
 

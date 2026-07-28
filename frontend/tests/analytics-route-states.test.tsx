@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import AnalyticsError from '@/app/(app)/analytics/error';
+import AnalyticsLoading from '@/app/(app)/analytics/loading';
 import AnalyticsPage from '@/app/(app)/analytics/page';
 
 const mocks = vi.hoisted(() => {
@@ -69,5 +70,13 @@ describe('Analytics route states', () => {
       }),
     ).toBeVisible();
     expect(screen.queryByText('database credentials')).not.toBeInTheDocument();
+  });
+
+  it('announces the dashboard loading state', () => {
+    render(<AnalyticsLoading />);
+
+    expect(
+      screen.getByLabelText('Loading analytics dashboard'),
+    ).toBeInTheDocument();
   });
 });

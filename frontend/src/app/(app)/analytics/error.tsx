@@ -9,10 +9,12 @@ export default function AnalyticsError({
   reset: () => void;
 }) {
   return (
-    <ErrorState
-      description="Trackly could not load this analytics summary. Try again shortly."
-      onRetry={reset}
-      title="Analytics is temporarily unavailable"
-    />
+    <div className="border-border bg-surface rounded-xl border">
+      <ErrorState
+        description="Trackly could not load this analytics summary. Your habit data is safe—try loading the dashboard again."
+        onRetry={reset}
+        title="Analytics is temporarily unavailable"
+      />
+    </div>
   );
 }
