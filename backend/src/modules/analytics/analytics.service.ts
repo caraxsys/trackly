@@ -14,6 +14,7 @@ import type {
   AnalyticsHistory,
   AnalyticsHistoryGranularity,
   AnalyticsHistoryPeriod,
+  AnalyticsInsights,
   AnalyticsPeriod,
   AnalyticsSummary,
 } from './analytics.types.js';
@@ -39,11 +40,34 @@ interface GetHistoryOptions {
   userId: string;
 }
 
+interface GetInsightsOptions {
+  now?: Date;
+  onTimezoneFallback?: () => void;
+  period: AnalyticsHistoryPeriod;
+  userId: string;
+}
+
 const historyDays: Record<AnalyticsHistoryPeriod, number> = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
 };
+
+const trendWindowDays: Record<AnalyticsHistoryPeriod, number> = {
+  '7d': 3,
+  '30d': 7,
+  '90d': 30,
+};
+
+const weekdayNames = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
 
 function formatDate(year: number, month: number, day: number) {
   return `${year.toString().padStart(4, '0')}-${month
@@ -215,9 +239,150 @@ function summarizeHistory(
   };
 }
 
+function averageActiveCompletionRate(
+  points: AnalyticsHistory['history'],
+): number | null {
+  const activePoints = points.filter((point) => point.scheduledCount > 0);
+  return activePoints.length === 0
+    ? null
+    : roundAverage(
+        activePoints.reduce((total, point) => total + point.completionRate, 0),
+        activePoints.length,
+      );
+}
+
+export function deriveAnalyticsInsights(
+  history: AnalyticsHistory,
+): AnalyticsInsights {
+  const activeDays = history.history.filter(
+    (point) => point.scheduledCount > 0,
+  );
+  const emptyInsights: AnalyticsInsights = {
+    period: history.period,
+    startDate: history.startDate,
+    endDate: history.endDate,
+    hasActivity: false,
+    insights: {
+      bestDay: null,
+      lowestDay: null,
+      mostProductiveWeekday: null,
+      consistency: null,
+      trend: null,
+    },
+  };
+
+  if (activeDays.length === 0) return emptyInsights;
+
+  const newestFirst = [...activeDays].sort((left, right) =>
+    right.date.localeCompare(left.date),
+  );
+  const bestDay = newestFirst.reduce((best, point) =>
+    point.completionRate > best.completionRate ? point : best,
+  );
+  const lowestDay = newestFirst.reduce((lowest, point) =>
+    point.completionRate < lowest.completionRate ? point : lowest,
+  );
+  const weekdayRates = new Map<number, number[]>();
+
+  for (const point of activeDays) {
+    const weekday = getIsoWeekday(point.date);
+    const rates = weekdayRates.get(weekday) ?? [];
+    rates.push(point.completionRate);
+    weekdayRates.set(weekday, rates);
+  }
+
+  const weekdayAverages = [...weekdayRates.entries()]
+    .map(([weekday, rates]) => ({
+      weekday,
+      averageCompletionRate: roundAverage(
+        rates.reduce((total, rate) => total + rate, 0),
+        rates.length,
+      ),
+    }))
+    .sort(
+      (left, right) =>
+        right.averageCompletionRate - left.averageCompletionRate ||
+        left.weekday - right.weekday,
+    );
+  const mostProductiveWeekday = weekdayAverages[0]!;
+  const fullyCompletedDays = activeDays.filter(
+    (point) => point.completedCount === point.scheduledCount,
+  ).length;
+  const windowDays = trendWindowDays[history.period];
+  const currentWindow = history.history.slice(-windowDays);
+  const previousWindow = history.history.slice(-windowDays * 2, -windowDays);
+  const currentAverage = averageActiveCompletionRate(currentWindow);
+  const previousAverage = averageActiveCompletionRate(previousWindow);
+  const hasTrendData = currentAverage !== null && previousAverage !== null;
+  const change = hasTrendData
+    ? roundAverage(currentAverage - previousAverage, 1)
+    : null;
+
+  return {
+    ...emptyInsights,
+    hasActivity: true,
+    insights: {
+      bestDay: {
+        date: bestDay.date,
+        completionRate: bestDay.completionRate,
+      },
+      lowestDay: {
+        date: lowestDay.date,
+        completionRate: lowestDay.completionRate,
+      },
+      mostProductiveWeekday: {
+        weekday: weekdayNames[mostProductiveWeekday.weekday - 1]!,
+        averageCompletionRate: mostProductiveWeekday.averageCompletionRate,
+      },
+      consistency: {
+        fullyCompletedDays,
+        activeDays: activeDays.length,
+        consistencyRate: roundRate(fullyCompletedDays, activeDays.length),
+      },
+      trend: hasTrendData
+        ? {
+            direction: change === 0 ? 'flat' : change! > 0 ? 'up' : 'down',
+            currentAverageCompletionRate: currentAverage,
+            previousAverageCompletionRate: previousAverage,
+            changePercentagePoints: change,
+          }
+        : {
+            direction: 'insufficient-data',
+            currentAverageCompletionRate: currentAverage,
+            previousAverageCompletionRate: previousAverage,
+            changePercentagePoints: null,
+          },
+    },
+  };
+}
+
 export function createAnalyticsQueryService(
   dependencies: AnalyticsServiceDependencies,
 ) {
+  async function getHistory(options: GetHistoryOptions) {
+    const storedTimezone = await dependencies.preferenceRepository.findTimezone(
+      options.userId,
+    );
+    const timezone = resolveTimezone(storedTimezone);
+
+    if (storedTimezone !== null && timezone !== storedTimezone) {
+      options.onTimezoneFallback?.();
+    }
+
+    const endDate = getLocalCalendarDate(options.now ?? new Date(), timezone);
+    const startDate = addCalendarDays(
+      endDate,
+      -(historyDays[options.period] - 1),
+    );
+    const records = await dependencies.analyticsRepository.listHabitRecords(
+      options.userId,
+      startDate,
+      endDate,
+    );
+
+    return summarizeHistory(options.period, startDate, endDate, records);
+  }
+
   return {
     async getSummary(options: GetSummaryOptions) {
       const storedTimezone =
@@ -244,27 +409,12 @@ export function createAnalyticsQueryService(
       return summarize(options.period, startDate, endDate, records);
     },
 
-    async getHistory(options: GetHistoryOptions) {
-      const storedTimezone =
-        await dependencies.preferenceRepository.findTimezone(options.userId);
-      const timezone = resolveTimezone(storedTimezone);
+    getHistory,
 
-      if (storedTimezone !== null && timezone !== storedTimezone) {
-        options.onTimezoneFallback?.();
-      }
-
-      const endDate = getLocalCalendarDate(options.now ?? new Date(), timezone);
-      const startDate = addCalendarDays(
-        endDate,
-        -(historyDays[options.period] - 1),
+    async getInsights(options: GetInsightsOptions) {
+      return deriveAnalyticsInsights(
+        await getHistory({ ...options, granularity: 'day' }),
       );
-      const records = await dependencies.analyticsRepository.listHabitRecords(
-        options.userId,
-        startDate,
-        endDate,
-      );
-
-      return summarizeHistory(options.period, startDate, endDate, records);
     },
   };
 }

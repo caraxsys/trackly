@@ -3,12 +3,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { AnalyticsHistory } from '@/components/analytics/analytics-history';
+import { AnalyticsInsights } from '@/components/analytics/analytics-insights';
 import { AnalyticsSummary } from '@/components/analytics/analytics-summary';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
   AnalyticsServerError,
   getServerAnalyticsHistory,
+  getServerAnalyticsInsights,
   getServerAnalyticsSummary,
 } from '@/services/analytics-server-service';
 import type {
@@ -48,12 +50,14 @@ export default async function AnalyticsPage({
 
   let data;
   let history;
+  let insights;
   let invalidQuery = false;
 
   try {
-    [data, history] = await Promise.all([
+    [data, history, insights] = await Promise.all([
       getServerAnalyticsSummary(period, date),
       getServerAnalyticsHistory(historyPeriod),
+      getServerAnalyticsInsights(historyPeriod),
     ]);
   } catch (error) {
     if (error instanceof AnalyticsServerError && error.status === 401) {
@@ -66,7 +70,7 @@ export default async function AnalyticsPage({
     }
   }
 
-  if (invalidQuery || !data || !history) {
+  if (invalidQuery || !data || !history || !insights) {
     return (
       <section
         className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
@@ -100,6 +104,7 @@ export default async function AnalyticsPage({
         selectedDate={date}
         summaryPeriod={period}
       />
+      <AnalyticsInsights data={insights} />
     </div>
   );
 }

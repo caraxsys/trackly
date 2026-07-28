@@ -38,3 +38,45 @@ export interface AnalyticsHistoryData {
   };
   history: AnalyticsHistoryPoint[];
 }
+
+export type AnalyticsTrendDirection =
+  'up' | 'down' | 'flat' | 'insufficient-data';
+
+export interface AnalyticsInsightsData {
+  period: AnalyticsHistoryPeriod;
+  startDate: string;
+  endDate: string;
+  hasActivity: boolean;
+  insights: {
+    bestDay: {
+      date: string;
+      completionRate: number;
+    } | null;
+    lowestDay: {
+      date: string;
+      completionRate: number;
+    } | null;
+    mostProductiveWeekday: {
+      weekday:
+        | 'monday'
+        | 'tuesday'
+        | 'wednesday'
+        | 'thursday'
+        | 'friday'
+        | 'saturday'
+        | 'sunday';
+      averageCompletionRate: number;
+    } | null;
+    consistency: {
+      fullyCompletedDays: number;
+      activeDays: number;
+      consistencyRate: number;
+    } | null;
+    trend: {
+      direction: AnalyticsTrendDirection;
+      currentAverageCompletionRate: number | null;
+      previousAverageCompletionRate: number | null;
+      changePercentagePoints: number | null;
+    } | null;
+  };
+}

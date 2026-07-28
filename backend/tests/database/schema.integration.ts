@@ -1660,6 +1660,34 @@ describe('core database domain schema', () => {
       completedCount: 0,
     });
     expect(JSON.stringify(history)).not.toContain('Analytics foreign');
+
+    const insights = await analyticsService().getInsights({
+      userId,
+      period: '7d',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    expect(insights).toMatchObject({
+      hasActivity: true,
+      period: '7d',
+      startDate: '2026-07-27',
+      endDate: '2026-08-02',
+      insights: {
+        bestDay: { date: '2026-07-27', completionRate: 100 },
+        lowestDay: { date: '2026-08-02', completionRate: 0 },
+        consistency: {
+          fullyCompletedDays: 1,
+          activeDays: 4,
+          consistencyRate: 25,
+        },
+        trend: {
+          direction: 'flat',
+          currentAverageCompletionRate: 0,
+          previousAverageCompletionRate: 0,
+          changePercentagePoints: 0,
+        },
+      },
+    });
+    expect(JSON.stringify(insights)).not.toContain('Analytics foreign');
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {

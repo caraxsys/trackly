@@ -14,9 +14,21 @@ export const analyticsSummaryQuerySchema = z.object({
 
 export type AnalyticsSummaryQuery = z.infer<typeof analyticsSummaryQuerySchema>;
 
+export const analyticsHistoryPeriodSchema = z
+  .enum(['7d', '30d', '90d'])
+  .default('30d');
+
 export const analyticsHistoryQuerySchema = z.object({
-  period: z.enum(['7d', '30d', '90d']).default('30d'),
+  period: analyticsHistoryPeriodSchema,
   granularity: z.literal('day').default('day'),
 });
 
 export type AnalyticsHistoryQuery = z.infer<typeof analyticsHistoryQuerySchema>;
+
+export const analyticsInsightsQuerySchema = z.object({
+  period: analyticsHistoryPeriodSchema,
+});
+
+export type AnalyticsInsightsQuery = z.infer<
+  typeof analyticsInsightsQuerySchema
+>;

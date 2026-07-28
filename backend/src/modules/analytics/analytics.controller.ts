@@ -4,6 +4,7 @@ import { requireUserId } from '../../auth/session.js';
 import { successResponse } from '../../http/responses.js';
 import type {
   AnalyticsHistoryQuery,
+  AnalyticsInsightsQuery,
   AnalyticsSummaryQuery,
 } from './analytics.schema.js';
 import type { AnalyticsQueryService } from './analytics.service.js';
@@ -42,6 +43,18 @@ export function createAnalyticsQueryController(
           userId,
           period: request.query.period,
           granularity: request.query.granularity,
+          onTimezoneFallback: timezoneFallback(request),
+        }),
+      );
+    },
+    insights: async (
+      request: FastifyRequest<{ Querystring: AnalyticsInsightsQuery }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await analyticsService.getInsights({
+          userId,
+          period: request.query.period,
           onTimezoneFallback: timezoneFallback(request),
         }),
       );

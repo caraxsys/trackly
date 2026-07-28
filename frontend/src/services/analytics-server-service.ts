@@ -6,6 +6,7 @@ import { getInternalApiUrl } from '@/lib/server-environment';
 import type {
   AnalyticsHistoryData,
   AnalyticsHistoryPeriod,
+  AnalyticsInsightsData,
   AnalyticsPeriod,
   AnalyticsSummaryData,
 } from '@/types/analytics';
@@ -67,6 +68,33 @@ export async function getServerAnalyticsHistory(
   });
   const payload = (await response.json()) as
     ApiSuccessResponse<AnalyticsHistoryData> | ApiErrorResponse;
+
+  if (!response.ok || !payload.success) {
+    throw new AnalyticsServerError(
+      response.status,
+      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
+    );
+  }
+
+  return payload.data;
+}
+
+export async function getServerAnalyticsInsights(
+  period: AnalyticsHistoryPeriod,
+) {
+  const cookieStore = await cookies();
+  const url = new URL('/api/v1/analytics/insights', getInternalApiUrl());
+  url.searchParams.set('period', period);
+
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      accept: 'application/json',
+      cookie: cookieStore.toString(),
+    },
+  });
+  const payload = (await response.json()) as
+    ApiSuccessResponse<AnalyticsInsightsData> | ApiErrorResponse;
 
   if (!response.ok || !payload.success) {
     throw new AnalyticsServerError(
