@@ -1712,6 +1712,27 @@ describe('core database domain schema', () => {
       averageCompletionRate: 3.57,
     });
     expect(JSON.stringify(heatmap)).not.toContain('Analytics foreign');
+
+    const habitRankings = await analyticsService().getHabitRankings({
+      userId,
+      period: '7d',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    const categoryRankings = await analyticsService().getCategoryRankings({
+      userId,
+      period: '7d',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    expect(habitRankings.hasActivity).toBe(true);
+    expect(
+      habitRankings.habits.every(({ scheduledCount }) => scheduledCount > 0),
+    ).toBe(true);
+    expect(JSON.stringify(habitRankings)).not.toContain('Analytics foreign');
+    expect(
+      categoryRankings.categories.every(
+        ({ activeHabitCount }) => activeHabitCount > 0,
+      ),
+    ).toBe(true);
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {

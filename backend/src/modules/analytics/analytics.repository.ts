@@ -5,6 +5,7 @@ import {
   habitCheckIns,
   habitSchedules,
   habits,
+  categories,
 } from '../../db/schema/index.js';
 import type { AnalyticsHabitRecord } from './analytics.types.js';
 
@@ -14,10 +15,14 @@ export function createAnalyticsQueryRepository(database: Database) {
       userId: string,
       startDate: string,
       endDate: string,
+      options: {
+        includeHistoricalCheckIns?: boolean;
+        includeInactive?: boolean;
+      } = {},
     ): Promise<AnalyticsHabitRecord[]> {
       const ownedRangeFilter = and(
         eq(habits.userId, userId),
-        eq(habits.isActive, true),
+        options.includeInactive ? undefined : eq(habits.isActive, true),
         isNull(habits.deletedAt),
         lte(habits.startDate, endDate),
         or(isNull(habits.endDate), gte(habits.endDate, startDate)),
@@ -25,13 +30,17 @@ export function createAnalyticsQueryRepository(database: Database) {
       const [habitRows, scheduleRows, checkInRows] = await Promise.all([
         database
           .select({
+            categoryId: habits.categoryId,
+            categoryName: categories.name,
             id: habits.id,
+            name: habits.name,
             frequencyType: habits.frequencyType,
             targetCount: habits.targetCount,
             startDate: habits.startDate,
             endDate: habits.endDate,
           })
           .from(habits)
+          .leftJoin(categories, eq(categories.id, habits.categoryId))
           .where(ownedRangeFilter),
         database
           .select({
@@ -53,7 +62,9 @@ export function createAnalyticsQueryRepository(database: Database) {
             and(
               ownedRangeFilter,
               eq(habitCheckIns.userId, userId),
-              gte(habitCheckIns.checkInDate, startDate),
+              options.includeHistoricalCheckIns
+                ? undefined
+                : gte(habitCheckIns.checkInDate, startDate),
               lte(habitCheckIns.checkInDate, endDate),
             ),
           ),
@@ -77,7 +88,16 @@ export function createAnalyticsQueryRepository(database: Database) {
       }
 
       return habitRows.map((row) => ({
-        ...row,
+        id: row.id,
+        name: row.name,
+        category:
+          row.categoryId && row.categoryName
+            ? { categoryId: row.categoryId, name: row.categoryName }
+            : null,
+        frequencyType: row.frequencyType,
+        targetCount: row.targetCount,
+        startDate: row.startDate,
+        endDate: row.endDate,
         weekdays: (weekdaysByHabit.get(row.id) ?? []).sort(
           (left, right) => left - right,
         ),

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => {
     getServerSession: vi.fn(),
     getServerAnalyticsHistory: vi.fn(),
     getServerAnalyticsHeatmap: vi.fn(),
+    getServerAnalyticsCategories: vi.fn(),
+    getServerAnalyticsHabits: vi.fn(),
     getServerAnalyticsInsights: vi.fn(),
     getServerAnalyticsSummary: vi.fn(),
     redirect: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock('@/lib/auth-session', () => ({
 vi.mock('@/services/analytics-server-service', () => ({
   getServerAnalyticsHistory: mocks.getServerAnalyticsHistory,
   getServerAnalyticsHeatmap: mocks.getServerAnalyticsHeatmap,
+  getServerAnalyticsCategories: mocks.getServerAnalyticsCategories,
+  getServerAnalyticsHabits: mocks.getServerAnalyticsHabits,
   getServerAnalyticsInsights: mocks.getServerAnalyticsInsights,
   getServerAnalyticsSummary: mocks.getServerAnalyticsSummary,
   AnalyticsServerError: mocks.AnalyticsServerError,
@@ -117,6 +121,20 @@ describe('Analytics route states', () => {
         averageCompletionRate: 0,
       },
       days: [],
+    });
+    mocks.getServerAnalyticsCategories.mockResolvedValue({
+      period: '30d',
+      startDate: '2026-06-29',
+      endDate: '2026-07-28',
+      hasActivity: false,
+      categories: [],
+    });
+    mocks.getServerAnalyticsHabits.mockResolvedValue({
+      period: '30d',
+      startDate: '2026-06-29',
+      endDate: '2026-07-28',
+      hasActivity: false,
+      habits: [],
     });
 
     render(

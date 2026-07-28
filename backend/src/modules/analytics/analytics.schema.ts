@@ -38,3 +38,8 @@ export const analyticsHeatmapQuerySchema = z.object({
 });
 
 export type AnalyticsHeatmapQuery = z.infer<typeof analyticsHeatmapQuerySchema>;
+
+export const analyticsRankingQuerySchema = z.object({
+  period: analyticsHistoryPeriodSchema,
+});
+export type AnalyticsRankingQuery = z.infer<typeof analyticsRankingQuerySchema>;
