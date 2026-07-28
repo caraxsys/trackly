@@ -343,15 +343,122 @@ describe('core database domain schema', () => {
 
   it('rejects invalid goal date ranges', async () => {
     const userId = await createTestUser();
+    const habitId = await insertHabit(userId);
     await expectPostgresError(
       database.insert(goals).values({
         userId,
+        habitId,
+        name: 'Invalid goal',
+        targetCount: 1,
         title: 'Invalid goal',
         startDate: '2026-03-01',
+        endDate: '2026-02-01',
         targetDate: '2026-02-01',
       }),
       '23514',
     );
+  });
+
+  it('enforces Goal targets, ownership reads, filters, and ordering', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const habitId = await insertHabit(userId);
+    const otherHabitId = await insertHabit(otherUserId);
+    await database
+      .update(habits)
+      .set({ isActive: false })
+      .where(eq(habits.id, habitId));
+
+    await expectPostgresError(
+      database.insert(goals).values({
+        userId,
+        habitId,
+        name: 'Invalid target',
+        targetCount: 0,
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+        title: 'Invalid target',
+      }),
+      '23514',
+    );
+    await expectPostgresError(
+      database.insert(goals).values({
+        userId,
+        habitId: randomUUID(),
+        name: 'Missing habit',
+        targetCount: 1,
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+        title: 'Missing habit',
+      }),
+      '23503',
+    );
+
+    const inserted = await database
+      .insert(goals)
+      .values([
+        {
+          userId,
+          habitId,
+          name: 'Later',
+          title: 'Later',
+          targetCount: 10,
+          startDate: '2026-03-01',
+          endDate: '2026-03-31',
+          status: 'active',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          userId,
+          habitId,
+          name: 'Earlier',
+          title: 'Earlier',
+          targetCount: 5,
+          startDate: '2026-02-01',
+          endDate: '2026-02-28',
+          status: 'completed',
+        },
+        {
+          userId: otherUserId,
+          habitId: otherHabitId,
+          name: 'Foreign',
+          title: 'Foreign',
+          targetCount: 2,
+          startDate: '2026-03-01',
+          endDate: '2026-03-31',
+        },
+      ])
+      .returning({ id: goals.id, name: goals.name });
+    const repository = createGoalRepository(database);
+    const later = inserted.find(({ name }) => name === 'Later')!;
+
+    expect(await repository.findByIdForUser(userId, later.id)).toMatchObject({
+      name: 'Later',
+      habitId,
+    });
+    expect(await repository.findByIdForUser(otherUserId, later.id)).toBeNull();
+    expect(
+      (await repository.listForUser(userId)).map(({ name }) => name),
+    ).toEqual(['Later', 'Earlier']);
+    expect(
+      await repository.listForUser(userId, { status: 'completed' }),
+    ).toHaveLength(1);
+    expect(
+      await repository.listForUser(userId, {
+        habitId,
+        overlapsStartDate: '2026-02-15',
+        overlapsEndDate: '2026-03-15',
+      }),
+    ).toHaveLength(2);
+    expect(await repository.verifyHabitOwnership(userId, habitId)).toBe(true);
+    expect(await repository.verifyHabitOwnership(userId, otherHabitId)).toBe(
+      false,
+    );
+    await database
+      .update(habits)
+      .set({ deletedAt: new Date() })
+      .where(eq(habits.id, habitId));
+    expect(await repository.verifyHabitOwnership(userId, habitId)).toBe(false);
   });
 
   it('cascades physical habit deletion to schedules and check-ins', async () => {
@@ -380,10 +487,17 @@ describe('core database domain schema', () => {
   });
 
   it('cascades physical goal deletion to goal steps', async () => {
+    const userId = await createTestUser();
+    const habitId = await insertHabit(userId);
     const [goal] = await database
       .insert(goals)
       .values({
-        userId: await createTestUser(),
+        userId,
+        habitId,
+        name: 'Test goal',
+        targetCount: 1,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
         title: 'Test goal',
       })
       .returning({ id: goals.id });
@@ -430,7 +544,16 @@ describe('core database domain schema', () => {
       .returning({ id: tasks.id });
     const [goal] = await database
       .insert(goals)
-      .values({ userId, categoryId: category.id, title: 'Focus goal' })
+      .values({
+        userId,
+        habitId: habit!.id,
+        categoryId: category.id,
+        name: 'Focus goal',
+        targetCount: 1,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        title: 'Focus goal',
+      })
       .returning({ id: goals.id });
 
     if (!habit || !task || !goal) {
@@ -489,7 +612,15 @@ describe('core database domain schema', () => {
         checkInDate: '2026-04-01',
       }),
       database.insert(tasks).values({ userId, title: 'Owned task' }),
-      database.insert(goals).values({ userId, title: 'Owned goal' }),
+      database.insert(goals).values({
+        userId,
+        habitId,
+        name: 'Owned goal',
+        targetCount: 1,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        title: 'Owned goal',
+      }),
       database.insert(userPreferences).values({ userId }),
     ]);
 
@@ -597,8 +728,9 @@ describe('core database domain schema', () => {
     const dailyId = byHabitName.get('Daily complete');
     const weeklyId = byHabitName.get('Weekly Monday');
     const customId = byHabitName.get('Custom Monday');
+    const otherHabitId = byHabitName.get('Other user habit');
 
-    if (!dailyId || !weeklyId || !customId) {
+    if (!dailyId || !weeklyId || !customId || !otherHabitId) {
       throw new Error('Scheduled test habits were not created.');
     }
 
@@ -660,45 +792,54 @@ describe('core database domain schema', () => {
 
     const insertedGoals = await database
       .insert(goals)
-      .values([
-        {
-          userId,
-          categoryId: deletedCategory.id,
-          title: 'Sooner goal',
-          targetDate: '2026-08-01',
-          position: 2,
-        },
-        {
-          userId,
-          title: 'Later goal',
-          targetDate: '2026-09-01',
-          position: 1,
-        },
-        {
-          userId,
-          title: 'Zero-step goal',
-          position: 3,
-        },
-        {
-          userId,
-          title: 'Future goal',
-          startDate: '2026-08-01',
-        },
-        {
-          userId,
-          title: 'Paused goal',
-          status: 'paused',
-        },
-        {
-          userId,
-          title: 'Deleted goal',
-          deletedAt: new Date('2026-07-01T00:00:00Z'),
-        },
-        {
-          userId: otherUserId,
-          title: 'Other user goal',
-        },
-      ])
+      .values(
+        [
+          {
+            userId,
+            categoryId: deletedCategory.id,
+            title: 'Sooner goal',
+            targetDate: '2026-08-01',
+            position: 2,
+          },
+          {
+            userId,
+            title: 'Later goal',
+            targetDate: '2026-09-01',
+            position: 1,
+          },
+          {
+            userId,
+            title: 'Zero-step goal',
+            position: 3,
+          },
+          {
+            userId,
+            title: 'Future goal',
+            startDate: '2026-08-01',
+          },
+          {
+            userId,
+            title: 'Paused goal',
+            status: 'cancelled' as const,
+          },
+          {
+            userId,
+            title: 'Deleted goal',
+            deletedAt: new Date('2026-07-01T00:00:00Z'),
+          },
+          {
+            userId: otherUserId,
+            title: 'Other user goal',
+          },
+        ].map((goal) => ({
+          ...goal,
+          habitId: goal.userId === userId ? dailyId : otherHabitId,
+          name: goal.title,
+          targetCount: 1,
+          startDate: 'startDate' in goal ? goal.startDate : '2026-01-01',
+          endDate: '2026-12-31',
+        })),
+      )
       .returning({ id: goals.id, title: goals.title });
     const soonerGoal = insertedGoals.find(
       (goal) => goal.title === 'Sooner goal',
@@ -877,6 +1018,11 @@ describe('core database domain schema', () => {
       .values(
         Array.from({ length: 20 }, (_, index) => ({
           userId,
+          habitId: fixtureHabits[0]!.id,
+          name: `Fixture goal ${index}`,
+          targetCount: 1,
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
           title: `Fixture goal ${index}`,
           targetDate: '2026-12-31',
         })),

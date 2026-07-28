@@ -18,6 +18,5 @@ export const priority = pgEnum('priority', ['low', 'medium', 'high']);
 export const goalStatus = pgEnum('goal_status', [
   'active',
   'completed',
-  'paused',
   'cancelled',
 ]);

@@ -21,6 +21,7 @@ export const habitsRelations = relations(habits, ({ one, many }) => ({
   }),
   schedules: many(habitSchedules),
   checkIns: many(habitCheckIns),
+  goals: many(goals),
 }));
 
 export const habitSchedulesRelations = relations(habitSchedules, ({ one }) => ({
@@ -45,6 +46,10 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 }));
 
 export const goalsRelations = relations(goals, ({ one, many }) => ({
+  habit: one(habits, {
+    fields: [goals.habitId],
+    references: [habits.id],
+  }),
   category: one(categories, {
     fields: [goals.categoryId],
     references: [categories.id],

@@ -1,12 +1,74 @@
-import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, or, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/client.js';
-import { categories, goals, goalSteps } from '../../db/schema/index.js';
+import { categories, goals, goalSteps, habits } from '../../db/schema/index.js';
 import { calculateCompletionPercentage } from '../today/today.summary.js';
 import type { TodayGoal } from './goal.types.js';
 
 export function createGoalRepository(database: Database) {
   return {
+    async findByIdForUser(userId: string, goalId: string) {
+      return (
+        (
+          await database
+            .select()
+            .from(goals)
+            .where(
+              and(
+                eq(goals.id, goalId),
+                eq(goals.userId, userId),
+                isNull(goals.deletedAt),
+              ),
+            )
+            .limit(1)
+        )[0] ?? null
+      );
+    },
+
+    async listForUser(
+      userId: string,
+      filters: {
+        status?: 'active' | 'completed' | 'cancelled';
+        habitId?: string;
+        overlapsStartDate?: string;
+        overlapsEndDate?: string;
+      } = {},
+    ) {
+      return database
+        .select()
+        .from(goals)
+        .where(
+          and(
+            eq(goals.userId, userId),
+            isNull(goals.deletedAt),
+            filters.status ? eq(goals.status, filters.status) : undefined,
+            filters.habitId ? eq(goals.habitId, filters.habitId) : undefined,
+            filters.overlapsEndDate
+              ? lte(goals.startDate, filters.overlapsEndDate)
+              : undefined,
+            filters.overlapsStartDate
+              ? gte(goals.endDate, filters.overlapsStartDate)
+              : undefined,
+          ),
+        )
+        .orderBy(desc(goals.startDate), desc(goals.createdAt), asc(goals.id));
+    },
+
+    async verifyHabitOwnership(userId: string, habitId: string) {
+      const row = await database
+        .select({ id: habits.id })
+        .from(habits)
+        .where(
+          and(
+            eq(habits.id, habitId),
+            eq(habits.userId, userId),
+            isNull(habits.deletedAt),
+          ),
+        )
+        .limit(1);
+      return row.length === 1;
+    },
+
     async listActiveForDate(
       userId: string,
       date: string,
