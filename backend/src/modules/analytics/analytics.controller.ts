@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import { requireUserId } from '../../auth/session.js';
 import { successResponse } from '../../http/responses.js';
 import type {
+  AnalyticsHeatmapQuery,
   AnalyticsHistoryQuery,
   AnalyticsInsightsQuery,
   AnalyticsSummaryQuery,
@@ -21,6 +22,18 @@ export function createAnalyticsQueryController(
   }
 
   return {
+    heatmap: async (
+      request: FastifyRequest<{ Querystring: AnalyticsHeatmapQuery }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await analyticsService.getHeatmap({
+          userId,
+          period: request.query.period,
+          onTimezoneFallback: timezoneFallback(request),
+        }),
+      );
+    },
     summary: async (
       request: FastifyRequest<{ Querystring: AnalyticsSummaryQuery }>,
     ) => {

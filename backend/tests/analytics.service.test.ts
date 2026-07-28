@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { addCalendarDays } from '../src/lib/date/calendar-date.js';
 import {
   createAnalyticsQueryService,
+  deriveAnalyticsHeatmap,
   deriveAnalyticsInsights,
+  resolveHeatmapLevel,
   resolveAnalyticsRange,
 } from '../src/modules/analytics/analytics.service.js';
 import type {
@@ -77,6 +79,57 @@ function repeat<T>(value: T, length: number): T[] {
 }
 
 describe('analytics query service', () => {
+  it('assigns deterministic heatmap levels at exact percentage boundaries', () => {
+    expect(resolveHeatmapLevel(0, 0)).toBe(0);
+    expect(resolveHeatmapLevel(10000, 2499)).toBe(1);
+    expect(resolveHeatmapLevel(4, 1)).toBe(2);
+    expect(resolveHeatmapLevel(2, 1)).toBe(3);
+    expect(resolveHeatmapLevel(1, 1)).toBe(4);
+  });
+
+  it('derives heatmap summary from active days only', () => {
+    const history = insightHistory([null, 0, 50, 100]);
+    const result = deriveAnalyticsHeatmap(
+      '90d',
+      history.startDate,
+      history.endDate,
+      history.history,
+    );
+
+    expect(result.summary).toEqual({
+      activeDays: 3,
+      completedDays: 1,
+      totalScheduledCount: 6,
+      totalCompletedCount: 3,
+      averageCompletionRate: 50,
+    });
+    expect(result.days.map(({ level }) => level)).toEqual([0, 0, 3, 4]);
+  });
+
+  it.each([
+    ['90d' as const, 90, '2023-12-03'],
+    ['180d' as const, 180, '2023-09-04'],
+    ['365d' as const, 365, '2023-03-03'],
+  ])(
+    'returns an inclusive %s user-local heatmap through leap year dates',
+    async (period, length, expectedStart) => {
+      const { service, listHabitRecords } = setup([], 'Pacific/Kiritimati');
+      const result = await service.getHeatmap({
+        period,
+        userId: 'user-1',
+        now: new Date('2024-03-01T00:30:00.000Z'),
+      });
+
+      expect(result.days).toHaveLength(length);
+      expect(result.startDate).toBe(expectedStart);
+      expect(result.endDate).toBe('2024-03-01');
+      expect(listHabitRecords).toHaveBeenCalledWith(
+        'user-1',
+        expectedStart,
+        '2024-03-01',
+      );
+    },
+  );
   it('resolves day, Monday-Sunday week, month, and leap-year ranges', () => {
     expect(resolveAnalyticsRange('day', '2026-07-29')).toEqual({
       startDate: '2026-07-29',

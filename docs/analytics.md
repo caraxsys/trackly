@@ -91,8 +91,28 @@ trends. The Insights section is fetched server-side for the same
 Recent Trend as primary cards; Lowest Day remains supporting text. No domain
 insight calculation occurs in the frontend.
 
-Custom ranges, weekly/monthly history granularity, heatmaps, category or goal
+Custom ranges, weekly/monthly history granularity, category or goal
 analytics, exports, forecasting, and persisted analytics remain out of scope.
+
+## Contribution heatmap
+
+`GET /api/v1/analytics/heatmap?period=365d` accepts `90d`, `180d`, or `365d`
+and defaults to `365d`. The inclusive range ends on authenticated user-local
+today, returns every calendar date, and ignores future dates. It reuses the
+same read-only daily occurrence aggregation as history; no heatmap values are
+stored.
+
+Levels are deterministic: `0` represents no schedule or no completion, `1`
+means greater than zero but below 25%, `2` is 25%–below 50%, `3` is
+50%–below 100%, and `4` is 100%. Boundaries are selected from integer
+occurrence counts before the displayed rate is rounded. `completedDays` counts
+active days at 100%, while `averageCompletionRate` is the arithmetic average
+over active days only.
+
+The server-rendered Analytics page keeps the independent selection in
+`heatmapPeriod`. Its Monday-first, horizontally scrollable contribution grid
+includes month labels, weekday guidance, a level legend, distinct unscheduled
+cells, keyboard focus, and per-day accessible date/count/rate descriptions.
 
 ## Integration validation
 

@@ -11,6 +11,8 @@ import type { PreferenceRepository } from '../preferences/preference.repository.
 import type { AnalyticsQueryRepository } from './analytics.repository.js';
 import type {
   AnalyticsHabitRecord,
+  AnalyticsHeatmap,
+  AnalyticsHeatmapPeriod,
   AnalyticsHistory,
   AnalyticsHistoryGranularity,
   AnalyticsHistoryPeriod,
@@ -47,6 +49,13 @@ interface GetInsightsOptions {
   userId: string;
 }
 
+interface GetHeatmapOptions {
+  now?: Date;
+  onTimezoneFallback?: () => void;
+  period: AnalyticsHeatmapPeriod;
+  userId: string;
+}
+
 const historyDays: Record<AnalyticsHistoryPeriod, number> = {
   '7d': 7,
   '30d': 30,
@@ -57,6 +66,12 @@ const trendWindowDays: Record<AnalyticsHistoryPeriod, number> = {
   '7d': 3,
   '30d': 7,
   '90d': 30,
+};
+
+const heatmapDays: Record<AnalyticsHeatmapPeriod, number> = {
+  '90d': 90,
+  '180d': 180,
+  '365d': 365,
 };
 
 const weekdayNames = [
@@ -178,13 +193,12 @@ function summarize(
   };
 }
 
-function summarizeHistory(
-  period: AnalyticsHistoryPeriod,
+function summarizeDailyRange(
   startDate: string,
   endDate: string,
   records: AnalyticsHabitRecord[],
-): AnalyticsHistory {
-  const history = [];
+): AnalyticsHistory['history'] {
+  const history: AnalyticsHistory['history'] = [];
 
   for (let date = startDate; date <= endDate; date = addCalendarDays(date, 1)) {
     const point = summarize('day', date, date, records);
@@ -198,6 +212,17 @@ function summarizeHistory(
       progressRate: point.progressRate,
     });
   }
+
+  return history;
+}
+
+function summarizeHistory(
+  period: AnalyticsHistoryPeriod,
+  startDate: string,
+  endDate: string,
+  records: AnalyticsHabitRecord[],
+): AnalyticsHistory {
+  const history = summarizeDailyRange(startDate, endDate, records);
 
   const totals = history.reduce(
     (result, point) => ({
@@ -356,10 +381,66 @@ export function deriveAnalyticsInsights(
   };
 }
 
+export function resolveHeatmapLevel(
+  scheduledCount: number,
+  completedCount: number,
+): 0 | 1 | 2 | 3 | 4 {
+  if (scheduledCount === 0 || completedCount === 0) return 0;
+
+  const scaledCompleted = completedCount * 100;
+  if (scaledCompleted < scheduledCount * 25) return 1;
+  if (scaledCompleted < scheduledCount * 50) return 2;
+  if (scaledCompleted < scheduledCount * 100) return 3;
+  return 4;
+}
+
+export function deriveAnalyticsHeatmap(
+  period: AnalyticsHeatmapPeriod,
+  startDate: string,
+  endDate: string,
+  days: AnalyticsHistory['history'],
+): AnalyticsHeatmap {
+  const activeDays = days.filter((point) => point.scheduledCount > 0);
+
+  return {
+    period,
+    startDate,
+    endDate,
+    summary: {
+      activeDays: activeDays.length,
+      completedDays: activeDays.filter(
+        (point) => point.completedCount === point.scheduledCount,
+      ).length,
+      totalScheduledCount: activeDays.reduce(
+        (total, point) => total + point.scheduledCount,
+        0,
+      ),
+      totalCompletedCount: activeDays.reduce(
+        (total, point) => total + point.completedCount,
+        0,
+      ),
+      averageCompletionRate: roundAverage(
+        activeDays.reduce((total, point) => total + point.completionRate, 0),
+        activeDays.length,
+      ),
+    },
+    days: days.map((point) => ({
+      date: point.date,
+      scheduledCount: point.scheduledCount,
+      completedCount: point.completedCount,
+      completionRate: point.completionRate,
+      level: resolveHeatmapLevel(point.scheduledCount, point.completedCount),
+    })),
+  };
+}
+
 export function createAnalyticsQueryService(
   dependencies: AnalyticsServiceDependencies,
 ) {
-  async function getHistory(options: GetHistoryOptions) {
+  async function loadDailyHistory(
+    options: Pick<GetHistoryOptions, 'now' | 'onTimezoneFallback' | 'userId'>,
+    days: number,
+  ) {
     const storedTimezone = await dependencies.preferenceRepository.findTimezone(
       options.userId,
     );
@@ -370,16 +451,21 @@ export function createAnalyticsQueryService(
     }
 
     const endDate = getLocalCalendarDate(options.now ?? new Date(), timezone);
-    const startDate = addCalendarDays(
-      endDate,
-      -(historyDays[options.period] - 1),
-    );
+    const startDate = addCalendarDays(endDate, -(days - 1));
     const records = await dependencies.analyticsRepository.listHabitRecords(
       options.userId,
       startDate,
       endDate,
     );
 
+    return { startDate, endDate, records };
+  }
+
+  async function getHistory(options: GetHistoryOptions) {
+    const { startDate, endDate, records } = await loadDailyHistory(
+      options,
+      historyDays[options.period],
+    );
     return summarizeHistory(options.period, startDate, endDate, records);
   }
 
@@ -415,6 +501,15 @@ export function createAnalyticsQueryService(
       return deriveAnalyticsInsights(
         await getHistory({ ...options, granularity: 'day' }),
       );
+    },
+
+    async getHeatmap(options: GetHeatmapOptions) {
+      const { startDate, endDate, records } = await loadDailyHistory(
+        options,
+        heatmapDays[options.period],
+      );
+      const days = summarizeDailyRange(startDate, endDate, records);
+      return deriveAnalyticsHeatmap(options.period, startDate, endDate, days);
     },
   };
 }

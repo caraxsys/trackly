@@ -32,3 +32,9 @@ export const analyticsInsightsQuerySchema = z.object({
 export type AnalyticsInsightsQuery = z.infer<
   typeof analyticsInsightsQuerySchema
 >;
+
+export const analyticsHeatmapQuerySchema = z.object({
+  period: z.enum(['90d', '180d', '365d']).default('365d'),
+});
+
+export type AnalyticsHeatmapQuery = z.infer<typeof analyticsHeatmapQuerySchema>;

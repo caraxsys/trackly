@@ -24,6 +24,53 @@ export const analyticsSummaryJsonSchema = {
   },
 } as const;
 
+export const analyticsHeatmapJsonSchema = {
+  type: 'object',
+  required: ['period', 'startDate', 'endDate', 'summary', 'days'],
+  properties: {
+    period: { type: 'string', enum: ['90d', '180d', '365d'] },
+    startDate: { type: 'string', format: 'date' },
+    endDate: { type: 'string', format: 'date' },
+    summary: {
+      type: 'object',
+      required: [
+        'activeDays',
+        'completedDays',
+        'totalScheduledCount',
+        'totalCompletedCount',
+        'averageCompletionRate',
+      ],
+      properties: {
+        activeDays: { type: 'integer', minimum: 0 },
+        completedDays: { type: 'integer', minimum: 0 },
+        totalScheduledCount: { type: 'integer', minimum: 0 },
+        totalCompletedCount: { type: 'integer', minimum: 0 },
+        averageCompletionRate: { type: 'number', minimum: 0, maximum: 100 },
+      },
+    },
+    days: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'date',
+          'scheduledCount',
+          'completedCount',
+          'completionRate',
+          'level',
+        ],
+        properties: {
+          date: { type: 'string', format: 'date' },
+          scheduledCount: { type: 'integer', minimum: 0 },
+          completedCount: { type: 'integer', minimum: 0 },
+          completionRate: { type: 'number', minimum: 0, maximum: 100 },
+          level: { type: 'integer', minimum: 0, maximum: 4 },
+        },
+      },
+    },
+  },
+} as const;
+
 const analyticsHistoryPointJsonSchema = {
   type: 'object',
   required: [

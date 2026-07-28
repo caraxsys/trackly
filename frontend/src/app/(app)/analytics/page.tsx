@@ -3,17 +3,20 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { AnalyticsHistory } from '@/components/analytics/analytics-history';
+import { AnalyticsHeatmap } from '@/components/analytics/analytics-heatmap';
 import { AnalyticsInsights } from '@/components/analytics/analytics-insights';
 import { AnalyticsSummary } from '@/components/analytics/analytics-summary';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
   AnalyticsServerError,
+  getServerAnalyticsHeatmap,
   getServerAnalyticsHistory,
   getServerAnalyticsInsights,
   getServerAnalyticsSummary,
 } from '@/services/analytics-server-service';
 import type {
+  AnalyticsHeatmapPeriod,
   AnalyticsHistoryPeriod,
   AnalyticsPeriod,
 } from '@/types/analytics';
@@ -35,6 +38,7 @@ export default async function AnalyticsPage({
   searchParams: Promise<{
     date?: string | string[];
     historyPeriod?: string | string[];
+    heatmapPeriod?: string | string[];
     period?: string | string[];
   }>;
 }) {
@@ -46,18 +50,22 @@ export default async function AnalyticsPage({
   const period = (rawPeriod ?? 'week') as AnalyticsPeriod;
   const historyPeriod = (readSingle(query.historyPeriod) ??
     '30d') as AnalyticsHistoryPeriod;
+  const heatmapPeriod = (readSingle(query.heatmapPeriod) ??
+    '365d') as AnalyticsHeatmapPeriod;
   const date = readSingle(query.date);
 
   let data;
   let history;
   let insights;
+  let heatmap;
   let invalidQuery = false;
 
   try {
-    [data, history, insights] = await Promise.all([
+    [data, history, insights, heatmap] = await Promise.all([
       getServerAnalyticsSummary(period, date),
       getServerAnalyticsHistory(historyPeriod),
       getServerAnalyticsInsights(historyPeriod),
+      getServerAnalyticsHeatmap(heatmapPeriod),
     ]);
   } catch (error) {
     if (error instanceof AnalyticsServerError && error.status === 401) {
@@ -70,7 +78,7 @@ export default async function AnalyticsPage({
     }
   }
 
-  if (invalidQuery || !data || !history || !insights) {
+  if (invalidQuery || !data || !history || !insights || !heatmap) {
     return (
       <section
         className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
@@ -80,7 +88,8 @@ export default async function AnalyticsPage({
           That analytics range is not available
         </h1>
         <p className="text-muted-foreground mx-auto mt-2 max-w-md text-sm">
-          Choose day, week, or month and use a valid calendar date.
+          Choose a supported summary, history, and heatmap period with a valid
+          calendar date.
         </p>
         <Link
           className="bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-medium outline-none focus-visible:ring-2"
@@ -101,10 +110,17 @@ export default async function AnalyticsPage({
       <AnalyticsSummary data={data} selectedDate={date} />
       <AnalyticsHistory
         data={history}
+        heatmapPeriod={heatmapPeriod}
         selectedDate={date}
         summaryPeriod={period}
       />
       <AnalyticsInsights data={insights} />
+      <AnalyticsHeatmap
+        data={heatmap}
+        historyPeriod={historyPeriod}
+        selectedDate={date}
+        summaryPeriod={period}
+      />
     </div>
   );
 }
