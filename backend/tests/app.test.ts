@@ -158,6 +158,36 @@ describe('backend foundation', () => {
     });
   });
 
+  it('validates analytics queries and rejects unauthenticated access', async () => {
+    const invalidResponses = await Promise.all([
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/summary?period=year',
+      }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/summary?period=week&date=2026-02-30',
+      }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/summary',
+      }),
+    ]);
+    const unauthenticated = await app.inject({
+      method: 'GET',
+      url: '/api/v1/analytics/summary?period=week',
+    });
+
+    expect(invalidResponses.every(({ statusCode }) => statusCode === 400)).toBe(
+      true,
+    );
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+  });
+
   it('validates habit collection query parameters and detail UUIDs', async () => {
     const invalidQueries = await Promise.all(
       [

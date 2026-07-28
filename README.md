@@ -208,6 +208,7 @@ Authenticated read endpoints now include:
 - `GET /api/v1/today`
 - `GET /api/v1/today?date=YYYY-MM-DD`
 - `GET /api/v1/categories`
+- `GET /api/v1/analytics/summary?period=day|week|month&date=YYYY-MM-DD`
 
 Today returns real PostgreSQL habits, mutually exclusive task groups, active
 goals with derived progress, and a daily summary based on the user's stored
@@ -216,6 +217,21 @@ UI or write endpoints are part of this milestone.
 
 See [`docs/today-query.md`](docs/today-query.md) for ownership, scheduling,
 timezone, grouping, summary, and performance rules.
+
+## Analytics
+
+The authenticated `/analytics` page and
+`GET /api/v1/analytics/summary` endpoint provide derived Habit occurrence and
+progress totals for a local-calendar day, Monday–Sunday week, or month.
+Metrics are user-scoped, respect recurrence and inclusive Habit date ranges,
+cap progress at each target, and are never persisted. The page contains only
+responsive summary cards and URL-based period/date controls.
+
+See [`docs/analytics.md`](docs/analytics.md) for the contract, formulas,
+timezone rules, exclusions, and architecture.
+
+Milestone 4.0B completed real browser, Docker, PostgreSQL, Swagger, responsive,
+accessibility, and regression validation for this Analytics summary flow.
 
 ## Habit API
 

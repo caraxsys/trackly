@@ -1,0 +1,61 @@
+import type { FastifyInstance } from 'fastify';
+
+import { database } from '../../db/client.js';
+import {
+  errorResponseJsonSchema,
+  successResponseJsonSchema,
+} from '../../http/openapi-schemas.js';
+import { validateRequest } from '../../validation/validate.js';
+import { createPreferenceRepository } from '../preferences/preference.repository.js';
+import { createAnalyticsQueryController } from './analytics.controller.js';
+import { analyticsSummaryJsonSchema } from './analytics.openapi.js';
+import { createAnalyticsQueryRepository } from './analytics.repository.js';
+import {
+  analyticsSummaryQuerySchema,
+  type AnalyticsSummaryQuery,
+} from './analytics.schema.js';
+import { createAnalyticsQueryService } from './analytics.service.js';
+
+const analyticsService = createAnalyticsQueryService({
+  analyticsRepository: createAnalyticsQueryRepository(database),
+  preferenceRepository: createPreferenceRepository(database),
+});
+
+export function analyticsRoutes(app: FastifyInstance) {
+  app.get<{ Querystring: AnalyticsSummaryQuery }>(
+    '/analytics/summary',
+    {
+      preValidation: validateRequest({ query: analyticsSummaryQuerySchema }),
+      schema: {
+        tags: ['analytics'],
+        summary: "Get the authenticated user's habit analytics summary",
+        description:
+          'Returns derived habit occurrence and progress totals for an inclusive local-calendar day, week, or month.',
+        querystring: {
+          type: 'object',
+          required: ['period'],
+          additionalProperties: false,
+          properties: {
+            period: {
+              type: 'string',
+              enum: ['day', 'week', 'month'],
+            },
+            date: {
+              type: 'string',
+              format: 'date',
+              description:
+                "Optional selected logical date in the user's timezone.",
+            },
+          },
+        },
+        response: {
+          200: successResponseJsonSchema(analyticsSummaryJsonSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    createAnalyticsQueryController(analyticsService),
+  );
+}

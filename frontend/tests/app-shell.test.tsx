@@ -40,7 +40,7 @@ describe('application shell', () => {
       'Habits',
       'Tasks',
       'Goals',
-      'Insights',
+      'Analytics',
       'Settings',
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);

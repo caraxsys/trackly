@@ -7,6 +7,8 @@ import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createAuth, type Auth } from '../../src/auth/auth.js';
+import { createAnalyticsQueryRepository } from '../../src/modules/analytics/analytics.repository.js';
+import { createAnalyticsQueryService } from '../../src/modules/analytics/analytics.service.js';
 import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 import { createGoalRepository } from '../../src/modules/goals/goal.repository.js';
 import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
@@ -70,6 +72,13 @@ function habitCommandService() {
     createHabitCommandRepository(database),
     createPreferenceRepository(database),
   );
+}
+
+function analyticsService() {
+  return createAnalyticsQueryService({
+    analyticsRepository: createAnalyticsQueryRepository(database),
+    preferenceRepository: createPreferenceRepository(database),
+  });
 }
 
 async function authRequest(
@@ -1439,6 +1448,93 @@ describe('core database domain schema', () => {
         ),
       ).rejects.toMatchObject({ statusCode: 404 });
     }
+  });
+
+  it('aggregates owned scheduled occurrences without N+1 reads', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const commandService = habitCommandService();
+    const daily = await commandService.create(userId, {
+      name: 'Analytics daily',
+      frequencyType: 'daily',
+      targetCount: 3,
+      startDate: '2026-07-27',
+      endDate: '2026-07-28',
+    });
+    await commandService.create(userId, {
+      name: 'Analytics weekly',
+      frequencyType: 'weekly',
+      startDate: '2026-01-01',
+      weekdays: [3],
+    });
+    await commandService.create(userId, {
+      name: 'Analytics custom',
+      frequencyType: 'custom',
+      startDate: '2026-01-01',
+      weekdays: [7],
+    });
+    await commandService.create(userId, {
+      name: 'Analytics inactive',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+      isActive: false,
+    });
+    const deleted = await commandService.create(userId, {
+      name: 'Analytics deleted',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+    });
+    await commandService.softDelete(userId, deleted.id);
+    await commandService.create(otherUserId, {
+      name: 'Analytics foreign',
+      frequencyType: 'daily',
+      startDate: '2026-01-01',
+    });
+    await database.insert(habitCheckIns).values([
+      {
+        habitId: daily.id,
+        userId,
+        checkInDate: '2026-07-27',
+        completedCount: 5,
+      },
+      {
+        habitId: daily.id,
+        userId,
+        checkInDate: '2026-07-28',
+        completedCount: 1,
+      },
+    ]);
+
+    const records = await createAnalyticsQueryRepository(
+      database,
+    ).listHabitRecords(userId, '2026-07-27', '2026-08-02');
+    expect(records.find(({ id }) => id === daily.id)).toMatchObject({
+      checkIns: [
+        { date: '2026-07-27', completedCount: 5 },
+        { date: '2026-07-28', completedCount: 1 },
+      ],
+    });
+    expect(
+      records.map(({ weekdays }) => weekdays).filter(Boolean),
+    ).toContainEqual([3]);
+
+    await expect(
+      analyticsService().getSummary({
+        userId,
+        period: 'week',
+        date: '2026-07-29',
+      }),
+    ).resolves.toEqual({
+      period: 'week',
+      startDate: '2026-07-27',
+      endDate: '2026-08-02',
+      scheduledCount: 4,
+      completedCount: 1,
+      completionRate: 25,
+      totalTargetCount: 8,
+      totalCompletedCount: 4,
+      progressRate: 50,
+    });
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {

@@ -27,17 +27,29 @@ global error recovery.
 
 Shared components must remain free of business rules and business datasets.
 
+The `/analytics` page is a dynamic Server Component using an uncached internal
+API request. Period and selected logical date remain in the URL. Its summary
+uses semantic navigation, a native GET date form, a definition list, and a
+responsive card grid. It intentionally has no charts, heatmaps, streaks, or
+client-side analytics cache.
+
+Milestone 4.0B validated direct URL loading, preserved period/date state,
+browser history, loading and safe invalid-query states, responsive desktop and
+mobile layouts, focus visibility, theme modes, and console/hydration
+cleanliness against the Dockerized API.
+
 ## Route map
 
-| Route       | Purpose                                      |
-| ----------- | -------------------------------------------- |
-| `/`         | Redirects to `/today`                        |
-| `/today`    | Main application entry point placeholder     |
-| `/habits`   | Future habits module placeholder             |
-| `/tasks`    | Future tasks module placeholder              |
-| `/goals`    | Future goals module placeholder              |
-| `/insights` | Future analytics/insights module placeholder |
-| `/settings` | Future preferences placeholder               |
+| Route        | Purpose                               |
+| ------------ | ------------------------------------- |
+| `/`          | Redirects to `/today`                 |
+| `/today`     | Authenticated daily dashboard         |
+| `/habits`    | Authenticated Habit collection        |
+| `/analytics` | Authenticated Habit analytics summary |
+| `/tasks`     | Future tasks module placeholder       |
+| `/goals`     | Future goals module placeholder       |
+| `/insights`  | Reserved future insights placeholder  |
+| `/settings`  | Future preferences placeholder        |
 
 Application-shell routes are protected; authentication routes are guest-only.
 No business data is loaded in this milestone.

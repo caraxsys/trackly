@@ -41,7 +41,10 @@ export const swaggerPlugin = fastifyPlugin(
           },
           { name: 'tasks', description: 'Future task endpoints' },
           { name: 'goals', description: 'Future goal endpoints' },
-          { name: 'analytics', description: 'Future analytics endpoints' },
+          {
+            name: 'analytics',
+            description: 'Authenticated analytics summary endpoints',
+          },
         ],
       },
     });
