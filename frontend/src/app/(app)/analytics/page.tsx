@@ -2,14 +2,19 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { AnalyticsHistory } from '@/components/analytics/analytics-history';
 import { AnalyticsSummary } from '@/components/analytics/analytics-summary';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
   AnalyticsServerError,
+  getServerAnalyticsHistory,
   getServerAnalyticsSummary,
 } from '@/services/analytics-server-service';
-import type { AnalyticsPeriod } from '@/types/analytics';
+import type {
+  AnalyticsHistoryPeriod,
+  AnalyticsPeriod,
+} from '@/types/analytics';
 
 export const metadata: Metadata = {
   title: 'Analytics',
@@ -27,6 +32,7 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{
     date?: string | string[];
+    historyPeriod?: string | string[];
     period?: string | string[];
   }>;
 }) {
@@ -36,13 +42,19 @@ export default async function AnalyticsPage({
   const query = await searchParams;
   const rawPeriod = readSingle(query.period);
   const period = (rawPeriod ?? 'week') as AnalyticsPeriod;
+  const historyPeriod = (readSingle(query.historyPeriod) ??
+    '30d') as AnalyticsHistoryPeriod;
   const date = readSingle(query.date);
 
   let data;
+  let history;
   let invalidQuery = false;
 
   try {
-    data = await getServerAnalyticsSummary(period, date);
+    [data, history] = await Promise.all([
+      getServerAnalyticsSummary(period, date),
+      getServerAnalyticsHistory(historyPeriod),
+    ]);
   } catch (error) {
     if (error instanceof AnalyticsServerError && error.status === 401) {
       redirect('/login');
@@ -54,7 +66,7 @@ export default async function AnalyticsPage({
     }
   }
 
-  if (invalidQuery || !data) {
+  if (invalidQuery || !data || !history) {
     return (
       <section
         className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
@@ -83,6 +95,11 @@ export default async function AnalyticsPage({
         title="Analytics"
       />
       <AnalyticsSummary data={data} selectedDate={date} />
+      <AnalyticsHistory
+        data={history}
+        selectedDate={date}
+        summaryPeriod={period}
+      />
     </div>
   );
 }

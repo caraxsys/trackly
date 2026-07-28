@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     getServerSession: vi.fn(),
+    getServerAnalyticsHistory: vi.fn(),
     getServerAnalyticsSummary: vi.fn(),
     redirect: vi.fn(),
     AnalyticsServerError: MockAnalyticsServerError,
@@ -26,6 +27,7 @@ vi.mock('@/lib/auth-session', () => ({
   getServerSession: mocks.getServerSession,
 }));
 vi.mock('@/services/analytics-server-service', () => ({
+  getServerAnalyticsHistory: mocks.getServerAnalyticsHistory,
   getServerAnalyticsSummary: mocks.getServerAnalyticsSummary,
   AnalyticsServerError: mocks.AnalyticsServerError,
 }));
@@ -53,6 +55,50 @@ describe('Analytics route states', () => {
       }),
     ).toBeVisible();
     expect(screen.queryByText('VALIDATION_ERROR')).not.toBeInTheDocument();
+  });
+
+  it('loads 30-day history by default and preserves an explicit period', async () => {
+    mocks.getServerSession.mockResolvedValue({
+      user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
+      session: { expiresAt: new Date() },
+    });
+    mocks.getServerAnalyticsSummary.mockResolvedValue({
+      period: 'week',
+      startDate: '2026-07-27',
+      endDate: '2026-08-02',
+      scheduledCount: 0,
+      completedCount: 0,
+      completionRate: 0,
+      totalTargetCount: 0,
+      totalCompletedCount: 0,
+      progressRate: 0,
+    });
+    mocks.getServerAnalyticsHistory.mockResolvedValue({
+      period: '30d',
+      granularity: 'day',
+      startDate: '2026-06-29',
+      endDate: '2026-07-28',
+      summary: {
+        averageCompletionRate: 0,
+        averageProgressRate: 0,
+        scheduledCount: 0,
+        completedCount: 0,
+        totalTargetCount: 0,
+        totalCompletedCount: 0,
+      },
+      history: [],
+    });
+
+    render(
+      await AnalyticsPage({
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(mocks.getServerAnalyticsHistory).toHaveBeenCalledWith('30d');
+    expect(
+      screen.getByRole('navigation', { name: 'Analytics history period' }),
+    ).toBeVisible();
   });
 
   it('shows a retryable error without internal details', () => {

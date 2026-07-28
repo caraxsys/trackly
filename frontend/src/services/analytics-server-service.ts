@@ -3,7 +3,12 @@ import 'server-only';
 import { cookies } from 'next/headers';
 
 import { getInternalApiUrl } from '@/lib/server-environment';
-import type { AnalyticsPeriod, AnalyticsSummaryData } from '@/types/analytics';
+import type {
+  AnalyticsHistoryData,
+  AnalyticsHistoryPeriod,
+  AnalyticsPeriod,
+  AnalyticsSummaryData,
+} from '@/types/analytics';
 import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 
 export class AnalyticsServerError extends Error {
@@ -34,6 +39,34 @@ export async function getServerAnalyticsSummary(
   });
   const payload = (await response.json()) as
     ApiSuccessResponse<AnalyticsSummaryData> | ApiErrorResponse;
+
+  if (!response.ok || !payload.success) {
+    throw new AnalyticsServerError(
+      response.status,
+      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
+    );
+  }
+
+  return payload.data;
+}
+
+export async function getServerAnalyticsHistory(
+  period: AnalyticsHistoryPeriod,
+) {
+  const cookieStore = await cookies();
+  const url = new URL('/api/v1/analytics/history', getInternalApiUrl());
+  url.searchParams.set('period', period);
+  url.searchParams.set('granularity', 'day');
+
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      accept: 'application/json',
+      cookie: cookieStore.toString(),
+    },
+  });
+  const payload = (await response.json()) as
+    ApiSuccessResponse<AnalyticsHistoryData> | ApiErrorResponse;
 
   if (!response.ok || !payload.success) {
     throw new AnalyticsServerError(

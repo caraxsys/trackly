@@ -1630,6 +1630,36 @@ describe('core database domain schema', () => {
       totalCompletedCount: 4,
       progressRate: 50,
     });
+
+    const history = await analyticsService().getHistory({
+      userId,
+      period: '7d',
+      granularity: 'day',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    expect(history.history).toHaveLength(7);
+    expect(history.history[0]).toMatchObject({
+      date: '2026-07-27',
+      scheduledCount: 1,
+      completedCount: 1,
+      totalTargetCount: 3,
+      totalCompletedCount: 3,
+      progressRate: 100,
+    });
+    expect(history.history[1]).toMatchObject({
+      date: '2026-07-28',
+      scheduledCount: 1,
+      completedCount: 0,
+      totalTargetCount: 3,
+      totalCompletedCount: 1,
+      progressRate: 33.33,
+    });
+    expect(history.history[2]).toMatchObject({
+      date: '2026-07-29',
+      scheduledCount: 1,
+      completedCount: 0,
+    });
+    expect(JSON.stringify(history)).not.toContain('Analytics foreign');
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {
