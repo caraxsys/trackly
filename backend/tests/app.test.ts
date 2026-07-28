@@ -343,6 +343,19 @@ describe('backend foundation', () => {
     for (const path of ['/api/v1/goals', '/api/v1/goals/{id}']) {
       expect(app.swagger().paths?.[path]).toBeDefined();
     }
+    const document = app.swagger();
+    expect(
+      JSON.stringify(
+        document.paths?.['/api/v1/goals/{id}']?.get?.responses?.['200'],
+      ),
+    ).toContain('"progress"');
+    const createOperation = document.paths?.['/api/v1/goals']?.post;
+    expect(createOperation && 'requestBody' in createOperation).toBe(true);
+    if (createOperation && 'requestBody' in createOperation) {
+      expect(JSON.stringify(createOperation.requestBody)).not.toContain(
+        '"progress"',
+      );
+    }
   });
 
   it('validates habit collection query parameters and detail UUIDs', async () => {

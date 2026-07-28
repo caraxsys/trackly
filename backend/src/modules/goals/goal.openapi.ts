@@ -17,6 +17,7 @@ export const goalJsonSchema = {
     'status',
     'createdAt',
     'updatedAt',
+    'progress',
   ],
   properties: {
     id: { type: 'string', format: 'uuid' },
@@ -30,5 +31,24 @@ export const goalJsonSchema = {
     status: goalStatusJsonSchema,
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
+    progress: {
+      type: 'object',
+      description:
+        'Read-only request-time accumulation from owned Habit check-ins. Rates use the 0-100 percentage convention.',
+      required: [
+        'currentCount',
+        'targetCount',
+        'remainingCount',
+        'progressRate',
+        'isTargetReached',
+      ],
+      properties: {
+        currentCount: { type: 'integer', minimum: 0 },
+        targetCount: { type: 'integer', minimum: 1 },
+        remainingCount: { type: 'integer', minimum: 0 },
+        progressRate: { type: 'number', minimum: 0 },
+        isTargetReached: { type: 'boolean' },
+      },
+    },
   },
 } as const;

@@ -7,6 +7,7 @@ import {
   getLocalCalendarDate,
   resolveTimezone,
 } from '../../lib/date/timezone.js';
+import { percentageRate } from '../../lib/metrics/rate.js';
 import type { PreferenceRepository } from '../preferences/preference.repository.js';
 import { calculateHabitStreak } from '../habits/habit-streak.service.js';
 import type { AnalyticsQueryRepository } from './analytics.repository.js';
@@ -138,11 +139,7 @@ function isScheduled(record: AnalyticsHabitRecord, date: string) {
   );
 }
 
-function roundRate(numerator: number, denominator: number) {
-  return denominator === 0
-    ? 0
-    : Math.round((numerator / denominator) * 10_000) / 100;
-}
+const roundRate = percentageRate;
 
 function roundAverage(total: number, count: number) {
   return count === 0 ? 0 : Math.round((total / count) * 100) / 100;

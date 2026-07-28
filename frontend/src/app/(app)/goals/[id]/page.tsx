@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { GoalDeleteButton } from '@/components/goals/goal-delete-button';
+import { GoalProgress } from '@/components/goals/goal-progress';
 import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import { getServerGoal, GoalServerError } from '@/services/goal-server-service';
@@ -44,6 +45,11 @@ export default async function GoalPage({
             </dd>
           </div>
         </dl>
+        <GoalProgress detailed goal={goal} />
+        <p className="text-muted-foreground mt-3 text-sm">
+          Manual status: <span className="capitalize">{goal.status}</span>.
+          Target achievement is derived independently.
+        </p>
         <p className="text-muted-foreground mt-5 text-sm">
           Progress from Habit check-ins will be integrated in the next
           milestone.

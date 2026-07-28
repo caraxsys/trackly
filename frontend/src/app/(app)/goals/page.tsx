@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
+import { GoalProgress } from '@/components/goals/goal-progress';
 import { getServerSession } from '@/lib/auth-session';
 import { getServerGoals } from '@/services/goal-server-service';
 import type { GoalStatus } from '@/types/goal';
@@ -73,6 +74,7 @@ export default async function GoalsPage({
               <p className="text-muted-foreground mt-3 text-sm">
                 Target {goal.targetCount} · {goal.startDate} – {goal.endDate}
               </p>
+              <GoalProgress goal={goal} />
               <Link
                 className="mt-3 inline-block text-sm underline"
                 href={`/goals/${goal.id}/edit`}

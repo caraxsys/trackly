@@ -432,6 +432,65 @@ describe('core database domain schema', () => {
       .returning({ id: goals.id, name: goals.name });
     const repository = createGoalRepository(database);
     const later = inserted.find(({ name }) => name === 'Later')!;
+    const earlier = inserted.find(({ name }) => name === 'Earlier')!;
+
+    await database.insert(habitCheckIns).values([
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-01-31',
+        completedCount: 9,
+      },
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-02-01',
+        completedCount: 2,
+      },
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-02-15',
+        completedCount: 0,
+      },
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-02-28',
+        completedCount: 3,
+      },
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-03-01',
+        completedCount: 4,
+      },
+      {
+        userId: otherUserId,
+        habitId,
+        checkInDate: '2026-03-02',
+        completedCount: 100,
+      },
+      {
+        userId,
+        habitId,
+        checkInDate: '2026-03-20',
+        completedCount: 7,
+      },
+      {
+        userId: otherUserId,
+        habitId: otherHabitId,
+        checkInDate: '2026-03-01',
+        completedCount: 100,
+      },
+    ]);
+    const progress = await repository.progressForGoals(
+      userId,
+      [earlier.id, later.id],
+      '2026-03-15',
+    );
+    expect(progress.get(earlier.id)).toBe(5);
+    expect(progress.get(later.id)).toBe(4);
 
     expect(await repository.findByIdForUser(userId, later.id)).toMatchObject({
       name: 'Later',
