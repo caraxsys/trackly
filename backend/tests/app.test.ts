@@ -317,6 +317,34 @@ describe('backend foundation', () => {
     },
   );
 
+  it('protects, validates, and documents Goal CRUD routes', async () => {
+    const unauthorized = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/v1/goals' }),
+      app.inject({
+        method: 'GET',
+        url: `/api/v1/goals/${crypto.randomUUID()}`,
+      }),
+      app.inject({ method: 'POST', url: '/api/v1/goals', payload: {} }),
+      app.inject({
+        method: 'PATCH',
+        url: `/api/v1/goals/${crypto.randomUUID()}`,
+        payload: {},
+      }),
+      app.inject({
+        method: 'DELETE',
+        url: `/api/v1/goals/${crypto.randomUUID()}`,
+      }),
+    ]);
+    expect(unauthorized[0].statusCode).toBe(401);
+    expect(unauthorized[1].statusCode).toBe(401);
+    expect(unauthorized[2].statusCode).toBe(400);
+    expect(unauthorized[3].statusCode).toBe(400);
+    expect(unauthorized[4].statusCode).toBe(401);
+    for (const path of ['/api/v1/goals', '/api/v1/goals/{id}']) {
+      expect(app.swagger().paths?.[path]).toBeDefined();
+    }
+  });
+
   it('validates habit collection query parameters and detail UUIDs', async () => {
     const invalidQueries = await Promise.all(
       [

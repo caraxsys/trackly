@@ -11,6 +11,7 @@ import { createAnalyticsQueryRepository } from '../../src/modules/analytics/anal
 import { createAnalyticsQueryService } from '../../src/modules/analytics/analytics.service.js';
 import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 import { createGoalRepository } from '../../src/modules/goals/goal.repository.js';
+import { createGoalService } from '../../src/modules/goals/goal.service.js';
 import { createHabitRepository } from '../../src/modules/habits/habit.repository.js';
 import { createHabitCommandRepository } from '../../src/modules/habits/habit-command.repository.js';
 import { createHabitCommandService } from '../../src/modules/habits/habit-command.service.js';
@@ -459,6 +460,37 @@ describe('core database domain schema', () => {
       .set({ deletedAt: new Date() })
       .where(eq(habits.id, habitId));
     expect(await repository.verifyHabitOwnership(userId, habitId)).toBe(false);
+
+    await database
+      .update(habits)
+      .set({ deletedAt: null, isActive: true })
+      .where(eq(habits.id, habitId));
+    const service = createGoalService(repository);
+    const created = await service.create(userId, {
+      habitId,
+      name: 'CRUD Goal',
+      targetCount: 12,
+      startDate: '2026-04-01',
+      endDate: '2026-04-30',
+      status: 'active',
+    });
+    const updated = await service.update(userId, created.id, {
+      targetCount: 15,
+      status: 'completed',
+    });
+    expect(updated).toMatchObject({
+      targetCount: 15,
+      status: 'completed',
+    });
+    await expect(service.remove(otherUserId, created.id)).rejects.toMatchObject(
+      {
+        statusCode: 404,
+      },
+    );
+    await service.remove(userId, created.id);
+    await expect(service.detail(userId, created.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 
   it('cascades physical habit deletion to schedules and check-ins', async () => {

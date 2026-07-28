@@ -5,14 +5,31 @@ import { categories, goals, goalSteps, habits } from '../../db/schema/index.js';
 import { calculateCompletionPercentage } from '../today/today.summary.js';
 import type { TodayGoal } from './goal.types.js';
 
+function goalProjection() {
+  return {
+    id: goals.id,
+    userId: goals.userId,
+    habitId: goals.habitId,
+    habitName: habits.name,
+    name: goals.name,
+    targetCount: goals.targetCount,
+    startDate: goals.startDate,
+    endDate: goals.endDate,
+    status: goals.status,
+    createdAt: goals.createdAt,
+    updatedAt: goals.updatedAt,
+  };
+}
+
 export function createGoalRepository(database: Database) {
   return {
     async findByIdForUser(userId: string, goalId: string) {
       return (
         (
           await database
-            .select()
+            .select(goalProjection())
             .from(goals)
+            .innerJoin(habits, eq(habits.id, goals.habitId))
             .where(
               and(
                 eq(goals.id, goalId),
@@ -35,8 +52,9 @@ export function createGoalRepository(database: Database) {
       } = {},
     ) {
       return database
-        .select()
+        .select(goalProjection())
         .from(goals)
+        .innerJoin(habits, eq(habits.id, goals.habitId))
         .where(
           and(
             eq(goals.userId, userId),
@@ -67,6 +85,90 @@ export function createGoalRepository(database: Database) {
         )
         .limit(1);
       return row.length === 1;
+    },
+
+    async verifySelectableHabit(userId: string, habitId: string) {
+      const row = await database
+        .select({ id: habits.id })
+        .from(habits)
+        .where(
+          and(
+            eq(habits.id, habitId),
+            eq(habits.userId, userId),
+            eq(habits.isActive, true),
+            isNull(habits.deletedAt),
+          ),
+        )
+        .limit(1);
+      return row.length === 1;
+    },
+
+    async create(
+      userId: string,
+      input: {
+        habitId: string;
+        name: string;
+        targetCount: number;
+        startDate: string;
+        endDate: string;
+        status: 'active' | 'completed' | 'cancelled';
+      },
+    ) {
+      const [created] = await database
+        .insert(goals)
+        .values({
+          ...input,
+          userId,
+          title: input.name,
+          targetDate: input.endDate,
+        })
+        .returning({ id: goals.id });
+      return created ? this.findByIdForUser(userId, created.id) : null;
+    },
+
+    async update(
+      userId: string,
+      id: string,
+      changes: Partial<{
+        habitId: string;
+        name: string;
+        targetCount: number;
+        startDate: string;
+        endDate: string;
+        status: 'active' | 'completed' | 'cancelled';
+      }>,
+    ) {
+      const [updated] = await database
+        .update(goals)
+        .set({
+          ...changes,
+          ...(changes.name ? { title: changes.name } : {}),
+          ...(changes.endDate ? { targetDate: changes.endDate } : {}),
+        })
+        .where(
+          and(
+            eq(goals.id, id),
+            eq(goals.userId, userId),
+            isNull(goals.deletedAt),
+          ),
+        )
+        .returning({ id: goals.id });
+      return updated ? this.findByIdForUser(userId, updated.id) : null;
+    },
+
+    async softDelete(userId: string, id: string) {
+      const [deleted] = await database
+        .update(goals)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(goals.id, id),
+            eq(goals.userId, userId),
+            isNull(goals.deletedAt),
+          ),
+        )
+        .returning({ id: goals.id });
+      return deleted ?? null;
     },
 
     async listActiveForDate(
