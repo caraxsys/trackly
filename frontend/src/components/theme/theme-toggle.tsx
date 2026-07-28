@@ -2,6 +2,8 @@
 
 import { Monitor } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { updatePreferences } from '@/services/preference-mutation-service';
+import type { ThemePreference } from '@/types/preference';
 
 const themes = [
   { value: 'light', label: 'Light' },
@@ -21,7 +23,11 @@ export function ThemeToggle() {
         aria-label="Color theme"
         className="border-border bg-surface text-foreground focus-visible:ring-ring rounded-md border px-2 py-1.5 text-sm outline-none focus-visible:ring-2"
         value={theme ?? 'system'}
-        onChange={(event) => setTheme(event.target.value)}
+        onChange={(event) => {
+          const theme = event.target.value as ThemePreference;
+          setTheme(theme);
+          void updatePreferences({ theme }).catch(() => undefined);
+        }}
       >
         {themes.map(({ value, label }) => (
           <option key={value} value={value}>

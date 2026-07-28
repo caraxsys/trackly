@@ -49,6 +49,9 @@ describe('application shell', () => {
     expect(await screen.findByRole('combobox', { name: 'Color theme' })).toBe(
       screen.getByLabelText('Color theme'),
     );
+    expect(
+      screen.getAllByRole('link', { name: 'Settings' })[0],
+    ).toHaveAttribute('href', '/settings/preferences');
   });
 
   it('marks the current navigation entry as active', () => {
