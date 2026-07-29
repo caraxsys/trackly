@@ -336,6 +336,118 @@ fails the entire tick.
 
 No automatic retry, retry backoff, delivery queue, dead-letter queue,
 distributed lock, provider message ID, `delivered_at`, `read_at`, click
-tracking, service worker, browser permission flow, or frontend notification
-integration exists. Frontend permission, browser subscription creation, and
-service-worker handling belong to Milestone 6.4C.
+tracking, notification history, or per-channel preference system exists.
+
+## Frontend Web Push
+
+The Preferences page contains a device-specific Notifications section:
+
+```text
+NotificationSettings
+  → Web Push client service
+  → service-worker registration
+  → browser PushManager
+  → authenticated push-subscription API
+```
+
+Browser APIs are isolated in the Web Push client service. Page components
+render state and initiate explicit actions; they do not directly register
+workers, request permission, or serialize subscriptions.
+
+### Frontend configuration
+
+Only the public VAPID key is exposed to browser code:
+
+```dotenv
+NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY=
+```
+
+It must correspond to the backend VAPID public key. The private key remains
+backend-only. Missing development configuration renders “Configuration
+unavailable” rather than throwing or requesting permission.
+
+Web Push requires a secure context. Production must use HTTPS; browsers
+normally treat `localhost` as secure for local development.
+
+### Permission lifecycle
+
+Trackly never requests notification permission on page load:
+
+- `default`: the Enable action requests permission after the user clicks it;
+- `granted`: Trackly can create or synchronize this device's subscription;
+- `denied`: Trackly shows blocked guidance and does not repeatedly request
+  permission.
+
+Browser permission cannot be reset programmatically. A user who denied
+permission must update the browser or site permission settings manually and
+then refresh Trackly's displayed status.
+
+### Enable, disable, and reconciliation
+
+Enabling performs these steps:
+
+1. Validate browser support, secure context, and public-key configuration.
+2. Register `/sw.js` with root scope.
+3. Request permission only when its current state is `default`.
+4. Reuse the existing PushManager subscription or create one with the
+   configured application-server key.
+5. Serialize the browser-provided endpoint and keys with
+   `PushSubscription.toJSON()`.
+6. Synchronize the subscription through the authenticated Axios client.
+7. Show enabled only after backend synchronization succeeds.
+
+Repeated actions are guarded against concurrent execution. Existing
+subscriptions are synchronized instead of recreated.
+
+Disabling first sends the endpoint to the authenticated DELETE API and then
+unsubscribes locally. Backend deletion is idempotent. If backend deletion
+succeeds but browser cleanup fails, the UI reports a safe partial-cleanup
+message. An absent local subscription is already disabled.
+
+When the settings UI opens, granted permission plus an existing local
+subscription triggers a lightweight backend synchronization. Trackly does not
+request permission or create a subscription during reconciliation. The status
+describes only the current browser/device; subscriptions on other devices are
+not displayed or deleted.
+
+Expired sessions follow the existing frontend behavior and redirect to login.
+No authentication token is stored in or sent to the service worker.
+
+### Service worker behavior
+
+`/sw.js` handles push display and notification clicks without adding Workbox,
+offline caching, background sync, or PWA installation behavior.
+
+Valid payloads display their title, body, and non-sensitive reminder data.
+Malformed or absent payloads use a generic Trackly fallback. No icon or badge
+is configured because the repository does not currently contain an appropriate
+notification asset.
+
+Click routing uses a fixed allowlist derived from known notification types.
+Habit reminders and unknown payloads route to `/today`. Arbitrary URLs in push
+data are ignored. The worker focuses and navigates an existing same-origin
+Trackly window when possible or opens a new same-origin window.
+
+### Manual local validation
+
+1. Generate VAPID keys and configure both backend keys, the VAPID subject, and
+   the matching frontend public key.
+2. Start Trackly on `localhost` or HTTPS and sign in.
+3. Open `/settings/preferences`.
+4. Confirm no permission prompt appears before clicking Enable notifications.
+5. Enable notifications and inspect that the browser creates one subscription
+   and Trackly sends one authenticated POST.
+6. Refresh the page and confirm the device remains enabled without creating a
+   new subscription or prompting again.
+7. Disable notifications and confirm the authenticated DELETE precedes local
+   unsubscribe.
+8. For notification-click testing, use browser developer tools or a controlled
+   local push fixture and confirm navigation remains on the `/today` route.
+
+Automated tests mock every PushManager and service-worker operation. They do not
+contact a real browser push endpoint.
+
+Browser behavior varies by engine and operating system, and private/incognito
+contexts may discard subscriptions. iOS support depends on its installed web
+application and browser-version requirements; Trackly does not add installation
+UI in this milestone.

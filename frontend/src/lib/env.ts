@@ -7,11 +7,13 @@ const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_AUTH_URL: z.url(
     'NEXT_PUBLIC_AUTH_URL must be a valid absolute URL',
   ),
+  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: z.string().trim().min(1).optional(),
 });
 
 interface PublicEnvironmentInput {
   NEXT_PUBLIC_API_URL?: string;
   NEXT_PUBLIC_AUTH_URL?: string;
+  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
 }
 
 export function parsePublicEnvironment(input: PublicEnvironmentInput) {
@@ -29,4 +31,6 @@ export function parsePublicEnvironment(input: PublicEnvironmentInput) {
 export const publicEnvironment = parsePublicEnvironment({
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   NEXT_PUBLIC_AUTH_URL: process.env.NEXT_PUBLIC_AUTH_URL,
+  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY:
+    process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY,
 });

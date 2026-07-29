@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { PreferenceForm } from '@/components/preferences/preference-form';
+import { NotificationSettings } from '@/components/preferences/notification-settings';
 import { getServerSession } from '@/lib/auth-session';
 import {
   getServerPreferences,
@@ -28,6 +29,7 @@ export default async function PreferencesPage() {
         description="Choose how Trackly presents dates, times, weeks, and themes."
       />
       <PreferenceForm initialPreferences={preferences} />
+      <NotificationSettings />
     </div>
   );
 }
