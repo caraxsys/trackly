@@ -1,0 +1,190 @@
+# Trackly quality baseline
+
+This document records the repository state audited for Milestone 7.0 on the
+`feature/milestone-7.0-quality-baseline` branch. It is an evidence-based
+baseline for Phase 7, not a claim that Trackly is production-ready.
+
+## Current architecture
+
+Trackly is a pnpm workspace containing:
+
+- a Next.js 16 and React 19 frontend using App Router Server Components by
+  default, small client boundaries, a central Axios client, and server-side
+  `fetch` services;
+- a Fastify 5 API organized around validated routes, thin controllers,
+  services, repositories, centralized error handling, Pino logging, Better
+  Auth, Swagger, and Drizzle;
+- PostgreSQL 17 with committed forward migrations, user-scoped domain tables,
+  soft deletion, logical `date` values, and ownership/index constraints;
+- a dedicated Reminder scheduler process with durable occurrence claims and
+  explicit Noop and Web Push providers;
+- development Docker Compose services for frontend, backend, and PostgreSQL.
+
+Repository evidence:
+
+- `frontend/src/app`, `frontend/src/components`, `frontend/src/services`
+- `backend/src/app.ts`, `backend/src/modules`, `backend/src/plugins`
+- `backend/src/db/schema`, `backend/src/db/migrations`
+- `backend/src/scheduler`
+- `docker-compose.yml`
+
+## Validation baseline
+
+The root workspace exposes formatting, lint, type-check, build, frontend test,
+backend test, and PostgreSQL integration commands in `package.json`. Backend
+HTTP tests use Fastify injection; frontend tests use Vitest, jsdom, and React
+Testing Library; database tests create and migrate an isolated PostgreSQL
+database.
+
+Following the two focused 7.0 regression additions, the automated suites
+contain 131 backend tests, 108 frontend tests, and 35 PostgreSQL integration
+tests. The validation commands and their actual results are recorded in the
+Milestone 7.0 final report.
+
+The repository does not currently define a single full-validation script,
+coverage command, browser E2E suite, load-test suite, or production-container
+smoke-test workflow. The root formatting check currently reports 179 files,
+including application sources, documentation, and generated Drizzle snapshots;
+this is a baseline failure rather than a change introduced by 7.0.
+
+Evidence:
+
+- `package.json`
+- `backend/package.json`
+- `frontend/package.json`
+- `backend/vitest.config.ts`
+- `backend/vitest.database.config.ts`
+- `frontend/vitest.config.ts`
+
+## Confirmed strengths
+
+1. **Clear backend boundaries.** Routes own validation and OpenAPI metadata,
+   controllers resolve authenticated identity, services own domain behavior,
+   and repositories own Drizzle queries. A repository search found no database
+   operations in module route, controller, or service files.
+2. **Ownership is consistently explicit.** User-owned repositories scope
+   reads and mutations by `user_id`; integration tests cover cross-user access
+   for core domains.
+3. **Centralized transport conventions.** `backend/src/plugins/error-handler.ts`
+   normalizes Zod, Fastify validation, malformed JSON, application errors,
+   unknown routes, and unexpected failures into the standard envelope.
+4. **Useful security foundations.** Better Auth owns sessions, cookies are
+   secure in production, credentialed CORS uses an allowlist, Helmet is
+   installed, authentication has targeted rate limits, and sensitive request
+   headers are redacted.
+5. **Timezone and logical-date discipline.** Domain code uses PostgreSQL
+   `date`, user timezones, deterministic recurrence utilities, and documented
+   UTC fallback behavior.
+6. **Deterministic data access.** Collection queries use explicit ordering and
+   stable ID tie-breakers; common list queries are paginated.
+7. **No persisted derived analytics.** Analytics, streaks, and progress remain
+   derived, consistent with `AGENTS.md`.
+8. **Strong functional test breadth.** Current tests cover domain calculations,
+   authentication, ownership, schema constraints, scheduler behavior,
+   notification providers, component states, and accessible text/controls.
+9. **Non-root production images.** Both production Dockerfiles create and run
+   as dedicated unprivileged users.
+
+## Findings
+
+No Critical finding was confirmed during this audit. That does not eliminate
+unknown risk; coverage and runtime gaps below limit the confidence of that
+statement.
+
+### High
+
+| Finding                                                                 | Affected area              | Repository evidence                                                                                                                                                                                                                                                                                                  | Impact                                                                                                                                                                                                | Recommended action                                                                                                                                                                           | Target |
+| ----------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Browser Content Security Policy is absent                               | Frontend and HTTP security | `backend/src/plugins/security.ts` explicitly sets `contentSecurityPolicy: false`; `frontend/next.config.ts` defines no security headers                                                                                                                                                                              | An otherwise exploitable injection defect has fewer browser-enforced containment boundaries. The service worker and authenticated UI increase the value of a robust policy.                           | Define and test environment-appropriate CSP and related frontend headers. Keep Swagger functional with narrowly scoped directives rather than globally disabling CSP.                        | 7.2    |
+| Email ownership is not verified                                         | Authentication             | `backend/src/auth/auth.ts` sets `requireEmailVerification: false`                                                                                                                                                                                                                                                    | Anyone able to register an address can claim it without proving ownership. This becomes more serious if password recovery, email delivery, or sensitive account workflows are added.                  | Define the account-verification policy, enable verification before email-dependent workflows, and add integration tests for verified/unverified behavior.                                    | 7.2    |
+| Analytics page multiplies database work across six independent requests | Analytics performance      | `frontend/src/app/(app)/analytics/page.tsx` concurrently requests summary, history, insights, heatmap, category rankings, and habit rankings; each backend path calls analytics repository aggregation, whose `listHabitRecords()` performs three queries in `backend/src/modules/analytics/analytics.repository.ts` | A single page view can execute approximately 18 overlapping analytics queries and repeatedly materialize the same habit, schedule, and check-in data. Cost grows with history length and habit count. | Measure with representative data, consolidate shared read work behind one request or request-scoped computation, and establish query/time budgets without persisting aggregates prematurely. | 7.4    |
+
+### Medium
+
+| Finding                                                                     | Affected area                          | Repository evidence                                                                                                                                                                                                                                             | Impact                                                                                                                                                                                             | Recommended action                                                                                                                                                                                                  | Target |
+| --------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Expected application error details have no public-shape boundary            | API error handling                     | `AppError.details` is `unknown` in `backend/src/errors/app-error.ts`; the global handler returns it directly                                                                                                                                                    | A future service can accidentally expose internal objects, SQL information, or provider details while still using the centralized handler.                                                         | Introduce an explicitly JSON-safe public-details type and per-error schemas or factories; test that causes and internal fields cannot reach responses.                                                              | 7.1    |
+| Frontend server fetch handling is duplicated and assumes JSON               | Frontend error handling                | Ten `response.json()` calls are independently implemented across `frontend/src/services/*-server-service.ts` with module-specific error classes                                                                                                                 | Empty, HTML, proxy, timeout, and malformed responses can surface as inconsistent render failures. Authentication and request-ID handling also diverge.                                             | Add one server-only request helper with timeout/abort, safe content parsing, request-ID capture, typed envelopes, and consistent 401/404/5xx mapping. Migrate incrementally.                                        | 7.1    |
+| Session dependency failures are treated as logged-out sessions              | Frontend authentication/error handling | `frontend/src/lib/auth-session.ts` catches every fetch or parsing failure and returns `null`                                                                                                                                                                    | Backend outage, timeout, malformed response, and genuine unauthenticated state all redirect users to login, obscuring service incidents and causing misleading UX.                                 | Distinguish unauthenticated responses from unavailable/invalid session-service responses and render the established error boundary for dependency failures.                                                         | 7.1    |
+| Concurrent subscription upserts can surface a database conflict as HTTP 500 | Push subscription API                  | `createOrReactivate()` in `backend/src/modules/push-subscriptions/push-subscription.repository.ts` checks then inserts; only the database partial unique index closes the race, and the service maps only the pre-check foreign-owner result                    | Simultaneous registration of the same endpoint can escape as an unexpected internal error instead of an idempotent update or stable conflict.                                                      | Handle unique violations transactionally, reload the winner, preserve ownership rules, and add a concurrent PostgreSQL/API test.                                                                                    | 7.1    |
+| General application mutation routes have no abuse-control policy            | API security                           | Better Auth rate limits only auth routes in `backend/src/auth/auth.ts`; Fastify application plugins register no rate-limit plugin                                                                                                                               | Authenticated or automated clients can rapidly exercise expensive analytics and mutation endpoints. CORS is not an abuse-control mechanism.                                                        | Define endpoint-class limits and trusted proxy behavior, then add standardized 429 responses and tests. Avoid arbitrary one-size-fits-all limits.                                                                   | 7.2    |
+| Swagger UI and the temporary diagnostic endpoint are always exposed         | API attack surface                     | `backend/src/plugins/swagger.ts` always registers `/docs`; `backend/src/routes/v1/index.ts` still registers the explicitly temporary `/diagnostics/validation` route                                                                                            | Production exposes additional discovery and executable surface that is not required for normal users.                                                                                              | Add environment policy for documentation exposure and remove or protect the temporary diagnostic endpoint after preserving validation coverage elsewhere.                                                           | 7.2    |
+| Web Push external calls have no Trackly-owned timeout/budget                | Scheduler reliability                  | `WebPushNotificationProvider.send()` awaits each `webPush.sendNotification()` sequentially in `backend/src/modules/notifications/web-push.provider.ts`; the scheduler also processes occurrences sequentially                                                   | A slow provider or many device subscriptions can delay the entire scheduler tick and later reminders.                                                                                              | Establish per-attempt timeout and tick budgets, measure expected fan-out, and retain bounded failure isolation without adding a queue prematurely.                                                                  | 7.4    |
+| Audit events are not recorded for sensitive state changes                   | Auditability                           | Mutation controllers/services update habits, goals, preferences, reminders, and push subscriptions, but no shared audit-event abstraction exists; Pino request logs are transport-level only                                                                    | Incident review cannot reliably answer who changed security- or behavior-relevant state and when.                                                                                                  | Define structured, privacy-conscious audit events for authentication and high-value mutations, with request ID, actor ID, action, target ID, and outcome.                                                           | 7.3    |
+| Operational telemetry is limited to logs and health checks                  | Observability                          | `backend/src/config/logger.ts`, scheduler log events, `/health`, and `/ready` exist; there are no latency/error metrics, traces, or documented service-level indicators                                                                                         | Regressions in latency, database cost, provider failures, or error rates are difficult to quantify before users report them.                                                                       | Standardize event names/fields, document an observability contract, and expose instrumentation hooks suitable for later infrastructure without deploying monitoring in this phase.                                  | 7.3    |
+| Process-failure and shutdown behavior is only partially hardened            | Backend runtime                        | `backend/src/server.ts` has signal handlers but no re-entry guard or shutdown deadline and no explicit `unhandledRejection`/`uncaughtException` policy                                                                                                          | Repeated signals or stuck shutdown hooks can leave termination behavior ambiguous; fatal asynchronous failures may not flush logs predictably.                                                     | Add idempotent shutdown, bounded termination, fatal-error policy, and focused process-level tests.                                                                                                                  | 7.3    |
+| No automated browser E2E, accessibility engine, or coverage baseline        | Testing                                | Frontend uses jsdom/Testing Library only; package manifests contain no Playwright/Cypress/axe/coverage tooling or scripts                                                                                                                                       | Service-worker behavior, hydration, responsive layout, real cookies, focus order, and browser permission integration are not continuously verified. Test breadth cannot be quantified by coverage. | Establish a small critical-path browser suite, automated accessibility checks, and coverage reporting with pragmatic thresholds.                                                                                    | 7.4    |
+| Docker validation covers development topology, not production images        | Production readiness                   | `docker-compose.yml` builds development targets, bind-mounts source, installs dependencies at startup, and uses development defaults; production Dockerfile stages are not used by Compose                                                                      | Passing Compose health checks does not prove that production images start, include migrations/static assets correctly, or work with production environment requirements.                           | Add documented production-image build and smoke commands, execute both non-root images, and verify health, Swagger policy, migrations, and frontend static assets. Do not add deployment infrastructure in Phase 7. | 7.4    |
+| Primary documentation is materially stale                                   | Documentation                          | `README.md` says product modules remain unimplemented and describes goals/settings as placeholders; `docs/architecture.md` says future business capabilities remain out of scope; `docs/frontend.md` route map labels implemented routes as future placeholders | Contributors and operators can make incorrect assumptions about current capability and validation requirements.                                                                                    | Reconcile README, architecture, frontend, backend, and module documents against the current route/schema inventory; add a maintained validation matrix.                                                             | 7.4    |
+| Repository formatting baseline is not enforceable                           | Code quality                           | `pnpm format:check` reports 179 files across backend, frontend, docs, and Drizzle metadata while lint and builds use the committed formatting as-is                                                                                                             | The documented full workflow fails before a contributor changes code, obscuring new formatting regressions and encouraging broad noisy rewrites.                                                   | Agree on line-ending/generated-file policy, configure Prettier ignores/overrides, normalize the repository in one reviewed mechanical change, and enforce the clean baseline afterward.                             | 7.4    |
+
+### Low
+
+| Finding                                                    | Affected area              | Repository evidence                                                                                                                                           | Impact                                                                                                                 | Recommended action                                                                                                     | Target |
+| ---------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------ |
+| Unknown-route responses reflected the raw query string     | API error handling/privacy | Prior behavior in `backend/src/plugins/error-handler.ts` used `request.url` in the public 404 message                                                         | Tokens or sensitive query values could be reflected into clients and copied into downstream telemetry.                 | Completed in 7.0: return only the request path and protect it with an injection test.                                  | 7.1    |
+| Sensitive-field redaction did not name Web Push material   | Logging/privacy            | Prior redaction paths in `backend/src/config/logger.ts` covered generic password/token/secret fields but not endpoint, `p256dh`, `auth`, or private-key names | A future structured log expansion could accidentally include push endpoint/key material.                               | Completed in 7.0: add explicit generic and request-body redaction paths. Verify redaction behavior as logging evolves. | 7.3    |
+| Full validation requires several manually ordered commands | Developer experience       | Root `package.json` has separate scripts but no aggregate validation command                                                                                  | Local validation can omit database tests, builds, or diff checks, producing inconsistent handoffs.                     | Add a documented, cross-platform aggregate command after Phase 7 decides which checks require Docker/PostgreSQL.       | 7.4    |
+| Dependency versions are expressed with broad caret ranges  | Dependency governance      | Both application manifests use caret ranges for most packages while the lockfile pins current resolution                                                      | Reinstallation after lockfile regeneration can introduce broad minor updates without an explicit compatibility review. | Document update policy and use automated, reviewed dependency updates; keep frozen-lockfile builds.                    | 7.2    |
+
+### Informational
+
+| Finding                                                                                  | Affected area        | Repository evidence                                                                                                                    | Impact                                                                                                           | Recommended action                                                                                                                         | Target |
+| ---------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| Development Compose intentionally uses predictable defaults and published database ports | Local infrastructure | `docker-compose.yml` defaults PostgreSQL credentials, Better Auth secret, and publishes port 5432 while setting `NODE_ENV=development` | Appropriate for local onboarding but unsafe if the development topology is mistaken for a production deployment. | Keep the distinction explicit in production-readiness documentation and smoke-test production images separately.                           | 7.4    |
+| Forward migrations have no repository rollback workflow                                  | Database operations  | `backend/src/db/migrations` and `db:migrate` provide forward migration only                                                            | Rollback during an operational incident requires a deliberate forward-fix or manually reviewed procedure.        | Document the forward-fix policy and rehearsal expectations; do not invent automatic down migrations without reviewing data-loss semantics. | 7.4    |
+
+## Phase 7 follow-up plan
+
+### 7.1 Error Handling & API Refinement
+
+1. Define JSON-safe public application error details and error factories.
+2. Consolidate frontend server-side API transport and timeout behavior.
+3. Separate unauthenticated sessions from backend/session-service failure.
+4. Make push-subscription registration concurrency-safe and idempotent.
+5. Review stable error codes, 404 behavior, request IDs, and OpenAPI examples.
+
+Exit evidence should include injection tests, server-service tests, concurrent
+PostgreSQL tests, and an OpenAPI regression.
+
+### 7.2 Security Hardening
+
+1. Add and test frontend/backend Content Security Policy and security headers.
+2. Decide and implement email-verification policy.
+3. Define application endpoint rate-limit classes and standardized 429 errors.
+4. Gate Swagger and remove or protect temporary diagnostics in production.
+5. Review cookies, trusted proxies, CORS/origin policy, dependency updates, and
+   secret-handling documentation.
+
+Exit evidence should include header tests, origin/rate-limit tests,
+authentication integration tests, and production-environment checks.
+
+### 7.3 Audit Logging & Observability
+
+1. Define structured audit events for authentication and mutations.
+2. Standardize log event fields, severity, request/actor correlation, and
+   privacy rules.
+3. Add instrumentation hooks for request latency, database work, scheduler
+   outcomes, and Web Push outcomes without deploying monitoring systems.
+4. Harden graceful shutdown and fatal-error handling.
+5. Add tests that verify redaction and stable audit-event shape.
+
+### 7.4 Performance, Tests & Documentation
+
+1. Benchmark analytics with representative 7/30/90-day fixtures and eliminate
+   repeated page-level aggregation.
+2. Establish query and response-time budgets for Today, collections, analytics,
+   streaks, and scheduler ticks.
+3. Add critical-path browser E2E, automated accessibility, coverage reporting,
+   and production-image smoke tests.
+4. Reconcile stale repository documentation and publish a validation matrix.
+5. Document forward migration recovery and production-image operation.
+6. Add one reliable aggregate validation workflow after its database/Docker
+   prerequisites are explicit.
+
+## Scope boundary
+
+Milestone 7.0 does not add a product feature, change an API contract or database
+schema, redesign architecture, introduce deployment/monitoring infrastructure,
+or alter Reminder and notification behavior. The only runtime fixes are the
+public 404 query-string suppression and expanded logger redaction rules.
