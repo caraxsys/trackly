@@ -1,5 +1,6 @@
 import { AppError } from '../../errors/app-error.js';
 import { ErrorCode } from '../../errors/error-codes.js';
+import type { JsonValue } from '../../http/json-value.js';
 import {
   getLocalCalendarDate,
   resolveTimezone,
@@ -38,7 +39,7 @@ function conflict(message: string) {
   });
 }
 
-function invalid(message: string, details?: unknown) {
+function invalid(message: string, details?: JsonValue) {
   return new AppError({
     statusCode: 400,
     code: ErrorCode.ValidationError,

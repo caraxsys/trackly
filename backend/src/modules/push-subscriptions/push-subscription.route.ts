@@ -30,6 +30,7 @@ const errors = {
   401: errorResponseJsonSchema,
   409: errorResponseJsonSchema,
   500: errorResponseJsonSchema,
+  503: errorResponseJsonSchema,
 };
 
 export function pushSubscriptionRoutes(app: FastifyInstance) {

@@ -9,7 +9,7 @@ export interface ErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: unknown;
+    details?: JsonValue;
   };
 }
 
@@ -27,9 +27,10 @@ export function successResponse<TData, TMeta>(data: TData, meta?: TMeta) {
 export function errorResponse(
   code: string,
   message: string,
-  details?: unknown,
+  details?: JsonValue,
 ): ErrorResponse {
   return details === undefined
     ? { success: false, error: { code, message } }
     : { success: false, error: { code, message, details } };
 }
+import type { JsonValue } from './json-value.js';

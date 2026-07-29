@@ -38,6 +38,7 @@ export function authRoutes(app: FastifyInstance) {
             },
           }),
           401: errorResponseJsonSchema,
+          503: errorResponseJsonSchema,
         },
       },
     },

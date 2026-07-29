@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import { cache } from 'react';
 import { z } from 'zod';
 
-import { getInternalApiUrl } from './server-environment';
+import { fetchServer, ServerApiError } from '@/services/server-api';
 
 const sessionSchema = z.object({
   user: z.object({
@@ -20,28 +20,42 @@ const sessionSchema = z.object({
 
 export type AuthSession = z.infer<typeof sessionSchema>;
 
-async function loadServerSession(): Promise<AuthSession | null> {
-  const cookieStore = await cookies();
+export class SessionServiceError extends Error {
+  constructor(
+    readonly code: string,
+    options?: ErrorOptions,
+  ) {
+    super('The session service could not be reached.', options);
+    this.name = 'SessionServiceError';
+  }
+}
 
+export async function loadServerSession(): Promise<AuthSession | null> {
   try {
-    const response = await fetch(
-      `${getInternalApiUrl()}/api/auth/get-session`,
-      {
-        cache: 'no-store',
-        headers: {
-          cookie: cookieStore.toString(),
-        },
-      },
-    );
+    const response = await fetchServer('/api/auth/get-session');
 
-    if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
       return null;
     }
+    if (!response.ok) {
+      throw new SessionServiceError('SESSION_SERVICE_UNAVAILABLE');
+    }
 
-    const result = sessionSchema.safeParse(await response.json());
-    return result.success ? result.data : null;
-  } catch {
-    return null;
+    const body: unknown = await response.json();
+    if (body === null) return null;
+
+    const result = sessionSchema.safeParse(body);
+    if (!result.success) {
+      throw new SessionServiceError('INVALID_SESSION_RESPONSE');
+    }
+    return result.data;
+  } catch (cause) {
+    unstable_rethrow(cause);
+    if (cause instanceof SessionServiceError) throw cause;
+    if (cause instanceof ServerApiError) {
+      throw new SessionServiceError(cause.code, { cause });
+    }
+    throw new SessionServiceError('INVALID_SESSION_RESPONSE', { cause });
   }
 }
 

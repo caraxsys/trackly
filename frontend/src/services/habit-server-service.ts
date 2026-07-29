@@ -1,9 +1,6 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
-
 import { getInternalApiUrl } from '@/lib/server-environment';
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 import type {
   HabitCategory,
   HabitCollectionData,
@@ -11,6 +8,7 @@ import type {
   HabitDetail,
   HabitStreak,
 } from '@/types/habit';
+import { requestServerApi, ServerApiError } from './server-api';
 
 export class HabitServerError extends Error {
   constructor(
@@ -23,22 +21,14 @@ export class HabitServerError extends Error {
 }
 
 async function requestHabit<T>(path: string) {
-  const cookieStore = await cookies();
-  const response = await fetch(new URL(path, getInternalApiUrl()), {
-    cache: 'no-store',
-    headers: { accept: 'application/json', cookie: cookieStore.toString() },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<T> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new HabitServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
+  try {
+    return await requestServerApi<T>(path);
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw new HabitServerError(error.status, error.code);
+    }
+    throw error;
   }
-
-  return payload.data;
 }
 
 export function getServerHabits(params: HabitCollectionParams) {

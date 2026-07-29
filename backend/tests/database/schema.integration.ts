@@ -2495,6 +2495,35 @@ describe('core database domain schema', () => {
     expect(second.status).toBe('created');
     expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
 
+    const concurrentEndpoint =
+      'https://push.example.test/subscription/concurrent';
+    const concurrent = await Promise.all([
+      repository.createOrReactivate(ownerId, {
+        endpoint: concurrentEndpoint,
+        p256dh: 'concurrent-p256dh-a',
+        auth: 'concurrent-auth-a',
+      }),
+      repository.createOrReactivate(ownerId, {
+        endpoint: concurrentEndpoint,
+        p256dh: 'concurrent-p256dh-b',
+        auth: 'concurrent-auth-b',
+      }),
+    ]);
+    expect(concurrent.map(({ status }) => status).sort()).toEqual([
+      'created',
+      'updated',
+    ]);
+    const concurrentRows = await database
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(
+        and(
+          eq(pushSubscriptions.endpoint, concurrentEndpoint),
+          isNull(pushSubscriptions.deletedAt),
+        ),
+      );
+    expect(concurrentRows).toHaveLength(1);
+
     await repository.recordFailure(first.subscription.id);
     const [failed] = await database
       .select()
@@ -2515,14 +2544,14 @@ describe('core database domain schema', () => {
     await expect(
       repository.disableOwned(ownerId, endpoint),
     ).resolves.toBeNull();
-    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(1);
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
     const reactivated = await repository.createOrReactivate(ownerId, {
       endpoint,
       p256dh: 'reactivated-p256dh-key',
       auth: 'reactivated-auth-key',
     });
     expect(reactivated.status).toBe('updated');
-    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(3);
 
     await expectPostgresError(
       database.insert(pushSubscriptions).values({

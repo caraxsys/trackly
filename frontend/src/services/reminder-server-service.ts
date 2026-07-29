@@ -1,10 +1,7 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
-
-import { getInternalApiUrl } from '@/lib/server-environment';
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 import type { ReminderListData } from '@/types/reminder';
+import { requestServerApi, ServerApiError } from './server-api';
 
 export class ReminderServerError extends Error {
   constructor(readonly status: number) {
@@ -14,23 +11,14 @@ export class ReminderServerError extends Error {
 }
 
 export async function getServerReminders(habitId: string) {
-  const response = await fetch(
-    new URL(
+  try {
+    return await requestServerApi<ReminderListData>(
       `/api/v1/habits/${encodeURIComponent(habitId)}/reminders`,
-      getInternalApiUrl(),
-    ),
-    {
-      cache: 'no-store',
-      headers: {
-        accept: 'application/json',
-        cookie: (await cookies()).toString(),
-      },
-    },
-  );
-  const payload = (await response.json()) as
-    ApiSuccessResponse<ReminderListData> | ApiErrorResponse;
-  if (!response.ok || !payload.success) {
-    throw new ReminderServerError(response.status);
+    );
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw new ReminderServerError(error.status);
+    }
+    throw error;
   }
-  return payload.data;
 }

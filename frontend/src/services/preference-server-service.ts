@@ -1,8 +1,6 @@
 import 'server-only';
-import { cookies } from 'next/headers';
-import { getInternalApiUrl } from '@/lib/server-environment';
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 import type { UserPreferences } from '@/types/preference';
+import { requestServerApi, ServerApiError } from './server-api';
 
 export class PreferenceServerError extends Error {
   constructor(readonly status: number) {
@@ -11,19 +9,12 @@ export class PreferenceServerError extends Error {
 }
 
 export async function getServerPreferences() {
-  const response = await fetch(
-    new URL('/api/v1/preferences', getInternalApiUrl()),
-    {
-      cache: 'no-store',
-      headers: {
-        accept: 'application/json',
-        cookie: (await cookies()).toString(),
-      },
-    },
-  );
-  const payload = (await response.json()) as
-    ApiSuccessResponse<UserPreferences> | ApiErrorResponse;
-  if (!response.ok || !payload.success)
-    throw new PreferenceServerError(response.status);
-  return payload.data;
+  try {
+    return await requestServerApi<UserPreferences>('/api/v1/preferences');
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw new PreferenceServerError(error.status);
+    }
+    throw error;
+  }
 }

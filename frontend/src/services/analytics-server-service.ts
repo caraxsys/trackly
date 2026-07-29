@@ -1,7 +1,5 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
-
 import { getInternalApiUrl } from '@/lib/server-environment';
 import type {
   AnalyticsCategoryRankings,
@@ -14,7 +12,7 @@ import type {
   AnalyticsPeriod,
   AnalyticsSummaryData,
 } from '@/types/analytics';
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
+import { requestServerApi, ServerApiError } from './server-api';
 
 export class AnalyticsServerError extends Error {
   constructor(
@@ -26,81 +24,43 @@ export class AnalyticsServerError extends Error {
   }
 }
 
+async function requestAnalytics<T>(path: string | URL) {
+  try {
+    return await requestServerApi<T>(path);
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw new AnalyticsServerError(error.status, error.code);
+    }
+    throw error;
+  }
+}
+
 export async function getServerAnalyticsSummary(
   period: AnalyticsPeriod,
   date?: string,
 ) {
-  const cookieStore = await cookies();
   const url = new URL('/api/v1/analytics/summary', getInternalApiUrl());
   url.searchParams.set('period', period);
   if (date) url.searchParams.set('date', date);
 
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      accept: 'application/json',
-      cookie: cookieStore.toString(),
-    },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<AnalyticsSummaryData> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new AnalyticsServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
-  }
-
-  return payload.data;
+  return requestAnalytics<AnalyticsSummaryData>(url);
 }
 
 export async function getServerAnalyticsHeatmap(
   period: AnalyticsHeatmapPeriod,
 ) {
-  const cookieStore = await cookies();
   const url = new URL('/api/v1/analytics/heatmap', getInternalApiUrl());
   url.searchParams.set('period', period);
-
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      accept: 'application/json',
-      cookie: cookieStore.toString(),
-    },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<AnalyticsHeatmapData> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new AnalyticsServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
-  }
-
-  return payload.data;
+  return requestAnalytics<AnalyticsHeatmapData>(url);
 }
 
 async function getServerAnalyticsRanking<T>(
   resource: 'categories' | 'habits',
   period: AnalyticsHistoryPeriod,
 ) {
-  const cookieStore = await cookies();
   const url = new URL(`/api/v1/analytics/${resource}`, getInternalApiUrl());
   url.searchParams.set('period', period);
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: { accept: 'application/json', cookie: cookieStore.toString() },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<T> | ApiErrorResponse;
-  if (!response.ok || !payload.success)
-    throw new AnalyticsServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
-  return payload.data;
+  return requestAnalytics<T>(url);
 }
 
 export const getServerAnalyticsCategories = (period: AnalyticsHistoryPeriod) =>
@@ -111,54 +71,17 @@ export const getServerAnalyticsHabits = (period: AnalyticsHistoryPeriod) =>
 export async function getServerAnalyticsHistory(
   period: AnalyticsHistoryPeriod,
 ) {
-  const cookieStore = await cookies();
   const url = new URL('/api/v1/analytics/history', getInternalApiUrl());
   url.searchParams.set('period', period);
   url.searchParams.set('granularity', 'day');
 
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      accept: 'application/json',
-      cookie: cookieStore.toString(),
-    },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<AnalyticsHistoryData> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new AnalyticsServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
-  }
-
-  return payload.data;
+  return requestAnalytics<AnalyticsHistoryData>(url);
 }
 
 export async function getServerAnalyticsInsights(
   period: AnalyticsHistoryPeriod,
 ) {
-  const cookieStore = await cookies();
   const url = new URL('/api/v1/analytics/insights', getInternalApiUrl());
   url.searchParams.set('period', period);
-
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      accept: 'application/json',
-      cookie: cookieStore.toString(),
-    },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<AnalyticsInsightsData> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new AnalyticsServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
-  }
-
-  return payload.data;
+  return requestAnalytics<AnalyticsInsightsData>(url);
 }

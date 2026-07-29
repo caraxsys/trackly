@@ -15,7 +15,11 @@ function zodDetails(error: ZodError) {
 
 function fastifyValidationDetails(error: FastifyError) {
   return error.validation?.map((issue) => ({
-    path: issue.instancePath || issue.params.missingProperty || '',
+    path:
+      issue.instancePath ||
+      (typeof issue.params.missingProperty === 'string'
+        ? issue.params.missingProperty
+        : ''),
     message: issue.message ?? 'Invalid value',
   }));
 }

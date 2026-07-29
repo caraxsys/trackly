@@ -21,6 +21,26 @@ describe('backend foundation', () => {
         message: 'Test application error.',
       });
     });
+
+    app.get('/test/application-error-details', () => {
+      throw new AppError({
+        statusCode: 400,
+        code: ErrorCode.ApplicationError,
+        message: 'Safe details.',
+        details: { field: 'date', reasons: ['invalid'] },
+      });
+    });
+
+    app.get('/test/application-error-unsafe-details', () => {
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+      throw new AppError({
+        statusCode: 400,
+        code: ErrorCode.ApplicationError,
+        message: 'Unsafe details.',
+        details: circular as never,
+      });
+    });
   });
 
   afterAll(async () => {
@@ -127,6 +147,37 @@ describe('backend foundation', () => {
       error: {
         code: 'APPLICATION_ERROR',
         message: 'Test application error.',
+      },
+    });
+  });
+
+  it('serializes JSON-safe public error details', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/application-error-details',
+    });
+
+    expect(response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'APPLICATION_ERROR',
+        message: 'Safe details.',
+        details: { field: 'date', reasons: ['invalid'] },
+      },
+    });
+  });
+
+  it('omits unsafe public error details', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/application-error-unsafe-details',
+    });
+
+    expect(response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'APPLICATION_ERROR',
+        message: 'Unsafe details.',
       },
     });
   });
@@ -256,6 +307,8 @@ describe('backend foundation', () => {
     expect(route?.get).toBeDefined();
     expect(route?.post).toBeDefined();
     expect(route?.delete).toBeDefined();
+    expect(route?.post?.responses?.['409']).toBeDefined();
+    expect(route?.post?.responses?.['503']).toBeDefined();
   });
 
   it('validates habit streak identifiers and requires authentication', async () => {
