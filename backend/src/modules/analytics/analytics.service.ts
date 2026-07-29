@@ -14,6 +14,7 @@ import type { AnalyticsQueryRepository } from './analytics.repository.js';
 import type {
   AnalyticsHabitRecord,
   AnalyticsCategoryRanking,
+  AnalyticsDashboard,
   AnalyticsHabitRanking,
   AnalyticsHeatmap,
   AnalyticsHeatmapPeriod,
@@ -57,6 +58,15 @@ interface GetHeatmapOptions {
   now?: Date;
   onTimezoneFallback?: () => void;
   period: AnalyticsHeatmapPeriod;
+  userId: string;
+}
+interface GetDashboardOptions {
+  date?: string;
+  heatmapPeriod: AnalyticsHeatmapPeriod;
+  historyPeriod: AnalyticsHistoryPeriod;
+  now?: Date;
+  onTimezoneFallback?: () => void;
+  period: AnalyticsPeriod;
   userId: string;
 }
 type GetRankingOptions = Omit<GetHistoryOptions, 'granularity'>;
@@ -192,6 +202,17 @@ function summarize(
     totalCompletedCount,
     progressRate: roundRate(totalCompletedCount, totalTargetCount),
   };
+}
+
+function overlapsRange(
+  record: AnalyticsHabitRecord,
+  startDate: string,
+  endDate: string,
+) {
+  return (
+    record.startDate <= endDate &&
+    (record.endDate === null || record.endDate >= startDate)
+  );
 }
 
 function summarizeDailyRange(
@@ -438,6 +459,100 @@ export function deriveAnalyticsHeatmap(
 export function createAnalyticsQueryService(
   dependencies: AnalyticsServiceDependencies,
 ) {
+  function rankHabits(
+    period: AnalyticsHistoryPeriod,
+    startDate: string,
+    endDate: string,
+    records: AnalyticsHabitRecord[],
+  ): AnalyticsHabitRanking {
+    const habits = records
+      .filter((record) => overlapsRange(record, startDate, endDate))
+      .map((record) => {
+        const metric = summarize('day', startDate, endDate, [record]);
+        const streak = calculateHabitStreak(record, endDate);
+        return {
+          habitId: record.id,
+          name: record.name ?? 'Unnamed habit',
+          category: record.category ?? null,
+          scheduledCount: metric.scheduledCount,
+          completedCount: metric.completedCount,
+          completionRate: metric.completionRate,
+          totalTargetCount: metric.totalTargetCount,
+          totalCompletedCount: metric.totalCompletedCount,
+          progressRate: metric.progressRate,
+          currentStreak: streak.currentStreak,
+          longestStreak: streak.longestStreak,
+        };
+      })
+      .filter((habit) => habit.scheduledCount > 0)
+      .sort(
+        (a, b) =>
+          b.completionRate - a.completionRate ||
+          b.progressRate - a.progressRate ||
+          a.name.localeCompare(b.name) ||
+          a.habitId.localeCompare(b.habitId),
+      );
+    return {
+      period,
+      startDate,
+      endDate,
+      hasActivity: habits.length > 0,
+      habits,
+    };
+  }
+
+  function rankCategories(
+    result: AnalyticsHabitRanking,
+  ): AnalyticsCategoryRanking {
+    const grouped = new Map<
+      string,
+      AnalyticsCategoryRanking['categories'][number]
+    >();
+    for (const habit of result.habits) {
+      if (!habit.category) continue;
+      const value = grouped.get(habit.category.categoryId) ?? {
+        categoryId: habit.category.categoryId,
+        name: habit.category.name,
+        scheduledCount: 0,
+        completedCount: 0,
+        completionRate: 0,
+        totalTargetCount: 0,
+        totalCompletedCount: 0,
+        progressRate: 0,
+        activeHabitCount: 0,
+      };
+      value.scheduledCount += habit.scheduledCount;
+      value.completedCount += habit.completedCount;
+      value.totalTargetCount += habit.totalTargetCount;
+      value.totalCompletedCount += habit.totalCompletedCount;
+      value.activeHabitCount++;
+      grouped.set(value.categoryId, value);
+    }
+    const categories = [...grouped.values()]
+      .map((value) => ({
+        ...value,
+        completionRate: roundRate(value.completedCount, value.scheduledCount),
+        progressRate: roundRate(
+          value.totalCompletedCount,
+          value.totalTargetCount,
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          b.completionRate - a.completionRate ||
+          b.progressRate - a.progressRate ||
+          a.name.localeCompare(b.name) ||
+          a.categoryId.localeCompare(b.categoryId),
+      );
+    return {
+      period: result.period,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      hasActivity: categories.length > 0,
+      categories,
+    };
+  }
+
   async function loadDailyHistory(
     options: Pick<GetHistoryOptions, 'now' | 'onTimezoneFallback' | 'userId'>,
     days: number,
@@ -490,39 +605,7 @@ export function createAnalyticsQueryService(
       endDate,
       { includeInactive: true, includeHistoricalCheckIns: true },
     );
-    const habits = records
-      .map((record) => {
-        const metric = summarize('day', startDate, endDate, [record]);
-        const streak = calculateHabitStreak(record, endDate);
-        return {
-          habitId: record.id,
-          name: record.name ?? 'Unnamed habit',
-          category: record.category ?? null,
-          scheduledCount: metric.scheduledCount,
-          completedCount: metric.completedCount,
-          completionRate: metric.completionRate,
-          totalTargetCount: metric.totalTargetCount,
-          totalCompletedCount: metric.totalCompletedCount,
-          progressRate: metric.progressRate,
-          currentStreak: streak.currentStreak,
-          longestStreak: streak.longestStreak,
-        };
-      })
-      .filter((habit) => habit.scheduledCount > 0)
-      .sort(
-        (a, b) =>
-          b.completionRate - a.completionRate ||
-          b.progressRate - a.progressRate ||
-          a.name.localeCompare(b.name) ||
-          a.habitId.localeCompare(b.habitId),
-      );
-    return {
-      period: options.period,
-      startDate,
-      endDate,
-      hasActivity: habits.length > 0,
-      habits,
-    };
+    return rankHabits(options.period, startDate, endDate, records);
   }
 
   return {
@@ -572,52 +655,72 @@ export function createAnalyticsQueryService(
       options: GetRankingOptions,
     ): Promise<AnalyticsCategoryRanking> {
       const result = await getHabitRankings(options);
-      const grouped = new Map<
-        string,
-        AnalyticsCategoryRanking['categories'][number]
-      >();
-      for (const habit of result.habits) {
-        if (!habit.category) continue;
-        const value = grouped.get(habit.category.categoryId) ?? {
-          categoryId: habit.category.categoryId,
-          name: habit.category.name,
-          scheduledCount: 0,
-          completedCount: 0,
-          completionRate: 0,
-          totalTargetCount: 0,
-          totalCompletedCount: 0,
-          progressRate: 0,
-          activeHabitCount: 0,
-        };
-        value.scheduledCount += habit.scheduledCount;
-        value.completedCount += habit.completedCount;
-        value.totalTargetCount += habit.totalTargetCount;
-        value.totalCompletedCount += habit.totalCompletedCount;
-        value.activeHabitCount++;
-        grouped.set(value.categoryId, value);
-      }
-      const categories = [...grouped.values()]
-        .map((value) => ({
-          ...value,
-          completionRate: roundRate(value.completedCount, value.scheduledCount),
-          progressRate: roundRate(
-            value.totalCompletedCount,
-            value.totalTargetCount,
-          ),
-        }))
-        .sort(
-          (a, b) =>
-            b.completionRate - a.completionRate ||
-            b.progressRate - a.progressRate ||
-            a.name.localeCompare(b.name) ||
-            a.categoryId.localeCompare(b.categoryId),
-        );
+      return rankCategories(result);
+    },
+    async getDashboard(
+      options: GetDashboardOptions,
+    ): Promise<AnalyticsDashboard> {
+      const storedTimezone =
+        await dependencies.preferenceRepository.findTimezone(options.userId);
+      const timezone = resolveTimezone(storedTimezone);
+      if (storedTimezone !== null && timezone !== storedTimezone)
+        options.onTimezoneFallback?.();
+
+      const today = getLocalCalendarDate(options.now ?? new Date(), timezone);
+      const selectedDate = options.date ?? today;
+      const summaryRange = resolveAnalyticsRange(options.period, selectedDate);
+      const historyStart = addCalendarDays(
+        today,
+        -(historyDays[options.historyPeriod] - 1),
+      );
+      const heatmapStart = addCalendarDays(
+        today,
+        -(heatmapDays[options.heatmapPeriod] - 1),
+      );
+      const startDate = [summaryRange.startDate, heatmapStart].sort()[0]!;
+      const endDate = [summaryRange.endDate, today].sort().at(-1)!;
+      const records = await dependencies.analyticsRepository.listHabitRecords(
+        options.userId,
+        startDate,
+        endDate,
+        { includeInactive: true, includeHistoricalCheckIns: true },
+      );
+      const activeRecords = records.filter((record) => record.isActive);
+      const history = summarizeHistory(
+        options.historyPeriod,
+        historyStart,
+        today,
+        activeRecords,
+      );
+      const heatmapDaysResult = summarizeDailyRange(
+        heatmapStart,
+        today,
+        activeRecords,
+      );
+      const habits = rankHabits(
+        options.historyPeriod,
+        historyStart,
+        today,
+        records,
+      );
+
       return {
-        period: options.period,
-        startDate: result.startDate,
-        endDate: result.endDate,
-        hasActivity: categories.length > 0,
-        categories,
+        summary: summarize(
+          options.period,
+          summaryRange.startDate,
+          summaryRange.endDate,
+          activeRecords,
+        ),
+        history,
+        insights: deriveAnalyticsInsights(history),
+        heatmap: deriveAnalyticsHeatmap(
+          options.heatmapPeriod,
+          heatmapStart,
+          today,
+          heatmapDaysResult,
+        ),
+        habits,
+        categories: rankCategories(habits),
       };
     },
   };

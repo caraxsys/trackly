@@ -389,6 +389,32 @@ describe('backend foundation', () => {
     });
   });
 
+  it('validates, protects, and documents the consolidated analytics dashboard', async () => {
+    const [unauthenticated, invalid] = await Promise.all([
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/dashboard',
+      }),
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/analytics/dashboard?historyPeriod=1y',
+      }),
+    ]);
+
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const operation = app.swagger().paths?.['/api/v1/analytics/dashboard']?.get;
+    expect(operation).toBeDefined();
+    for (const status of ['200', '400', '401', '500']) {
+      expect(operation?.responses?.[status]).toBeDefined();
+    }
+  });
+
   it('defaults, validates, protects, and documents analytics history', async () => {
     const [defaultQuery, invalidPeriod, invalidGranularity] = await Promise.all(
       [

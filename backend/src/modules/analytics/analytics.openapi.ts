@@ -345,3 +345,24 @@ export const analyticsInsightsJsonSchema = {
     },
   },
 } as const;
+
+export const analyticsDashboardJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'summary',
+    'history',
+    'insights',
+    'heatmap',
+    'categories',
+    'habits',
+  ],
+  properties: {
+    summary: analyticsSummaryJsonSchema,
+    history: analyticsHistoryJsonSchema,
+    insights: analyticsInsightsJsonSchema,
+    heatmap: analyticsHeatmapJsonSchema,
+    categories: analyticsCategoriesJsonSchema,
+    habits: analyticsHabitsJsonSchema,
+  },
+} as const;

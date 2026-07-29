@@ -332,7 +332,6 @@ export function HabitForm({
             <FieldError id="end-date-error" message={errors.endDate?.message} />
           </div>
         </div>
-
       </fieldset>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

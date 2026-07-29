@@ -159,3 +159,22 @@ date, averages include zero-activity calendar days, and the page does not cache
 user analytics. A total backend outage follows the existing protected-route
 behavior because session resolution occurs before the Analytics request; the
 dedicated retryable Analytics error boundary remains covered by frontend tests.
+
+## Dashboard read optimization
+
+The authenticated Analytics page uses
+`GET /api/v1/analytics/dashboard` to obtain the existing summary, history,
+insights, heatmap, category-ranking, and habit-ranking response objects in one
+envelope. The individual endpoints remain available with unchanged contracts.
+
+The dashboard service resolves the user timezone once and loads one bounded
+superset of owned Habit, schedule, and check-in data. Active-only summaries and
+history are filtered from that snapshot, while historical inactive Habit
+rankings preserve their existing semantics. Derived analytics remain
+request-scoped and are never persisted or placed in a shared cache.
+
+The repository loader uses three parallel SQL statements. Before this
+optimization, the page made six API requests that each invoked the loader,
+giving a stable budget of 18 SQL statements. The dashboard path invokes it
+once, reducing that budget to 3 statements. Service regression tests enforce
+the single-loader-call budget and representative calculation results.

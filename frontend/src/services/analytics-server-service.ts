@@ -3,6 +3,7 @@ import 'server-only';
 import { getInternalApiUrl } from '@/lib/server-environment';
 import type {
   AnalyticsCategoryRankings,
+  AnalyticsDashboardData,
   AnalyticsHabitRankings,
   AnalyticsHeatmapData,
   AnalyticsHeatmapPeriod,
@@ -44,6 +45,20 @@ export async function getServerAnalyticsSummary(
   if (date) url.searchParams.set('date', date);
 
   return requestAnalytics<AnalyticsSummaryData>(url);
+}
+
+export async function getServerAnalyticsDashboard(options: {
+  date?: string;
+  heatmapPeriod: AnalyticsHeatmapPeriod;
+  historyPeriod: AnalyticsHistoryPeriod;
+  period: AnalyticsPeriod;
+}) {
+  const url = new URL('/api/v1/analytics/dashboard', getInternalApiUrl());
+  url.searchParams.set('period', options.period);
+  url.searchParams.set('historyPeriod', options.historyPeriod);
+  url.searchParams.set('heatmapPeriod', options.heatmapPeriod);
+  if (options.date) url.searchParams.set('date', options.date);
+  return requestAnalytics<AnalyticsDashboardData>(url);
 }
 
 export async function getServerAnalyticsHeatmap(

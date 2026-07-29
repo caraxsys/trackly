@@ -42,4 +42,14 @@ export type AnalyticsHeatmapQuery = z.infer<typeof analyticsHeatmapQuerySchema>;
 export const analyticsRankingQuerySchema = z.object({
   period: analyticsHistoryPeriodSchema,
 });
+
+export const analyticsDashboardQuerySchema = z.object({
+  period: z.enum(['day', 'week', 'month']).default('week'),
+  date: z.iso.date().optional(),
+  historyPeriod: analyticsHistoryPeriodSchema,
+  heatmapPeriod: z.enum(['90d', '180d', '365d']).default('365d'),
+});
+export type AnalyticsDashboardQuery = z.infer<
+  typeof analyticsDashboardQuerySchema
+>;
 export type AnalyticsRankingQuery = z.infer<typeof analyticsRankingQuerySchema>;

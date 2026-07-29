@@ -132,6 +132,20 @@ Both applications provide dedicated `lint`, `typecheck`, and `build` scripts.
 Run them across the workspace with `pnpm lint`, `pnpm typecheck`, and
 `pnpm build`.
 
+`pnpm validate` runs the deterministic formatting, lint, type-check, unit-test,
+and production-build sequence. PostgreSQL integration tests remain explicit
+because they require a running local database:
+
+```bash
+pnpm validate
+pnpm test:database
+docker compose config --quiet
+git diff --check
+```
+
+Run `pnpm format` after intentional edits and require the repository-wide
+`pnpm format:check` baseline to remain clean.
+
 ## Backend API foundation
 
 Application endpoints are versioned under `/api/v1`. Infrastructure endpoints
@@ -156,9 +170,9 @@ pnpm test:backend
 
 The Next.js application uses a responsive shared shell. Desktop layouts have a
 persistent sidebar; mobile layouts use bottom navigation with settings
-available in the top bar. `/` redirects to `/today`, and the prepared
-placeholder routes are `/today`, `/habits`, `/tasks`, `/goals`, `/insights`,
-and `/settings`.
+available in the top bar. `/` redirects to `/today`. Today, Habits, Goals,
+Analytics, and Settings are implemented authenticated experiences; Tasks and
+Insights remain reserved placeholders.
 
 Light, dark, and system themes persist through `next-themes`. Public environment
 variables are validated with Zod, and all API access must use the shared Axios
@@ -177,7 +191,7 @@ pnpm test:frontend
 ## Authentication
 
 Better Auth owns `/api/auth/*`, password hashing, database sessions, and
-HttpOnly cookies. Trackly's protected diagnostic endpoint is
+HttpOnly cookies.
 `GET /api/v1/auth/me`. The browser uses `NEXT_PUBLIC_AUTH_URL`; Server
 Components use `INTERNAL_API_URL` to check sessions before rendering protected
 pages.
@@ -220,12 +234,13 @@ timezone, grouping, summary, and performance rules.
 
 ## Analytics
 
-The authenticated `/analytics` page and
-`GET /api/v1/analytics/summary` endpoint provide derived Habit occurrence and
-progress totals for a local-calendar day, Monday–Sunday week, or month.
+The authenticated `/analytics` page and Analytics endpoints provide derived
+Habit occurrence and progress totals for local-calendar summary, history,
+insight, heatmap, and ranking ranges.
 Metrics are user-scoped, respect recurrence and inclusive Habit date ranges,
-cap progress at each target, and are never persisted. The page contains only
-responsive summary cards and URL-based period/date controls.
+cap progress at each target, and are never persisted. The page uses a bounded
+dashboard composition read so all existing panels share one repository
+snapshot rather than issuing six overlapping aggregation requests.
 
 See [`docs/analytics.md`](docs/analytics.md) for the contract, formulas,
 timezone rules, exclusions, and architecture.

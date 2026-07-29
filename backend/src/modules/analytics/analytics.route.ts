@@ -10,6 +10,7 @@ import { createPreferenceRepository } from '../preferences/preference.repository
 import { createAnalyticsQueryController } from './analytics.controller.js';
 import {
   analyticsHeatmapJsonSchema,
+  analyticsDashboardJsonSchema,
   analyticsCategoriesJsonSchema,
   analyticsHabitsJsonSchema,
   analyticsHistoryJsonSchema,
@@ -19,11 +20,13 @@ import {
 import { createAnalyticsQueryRepository } from './analytics.repository.js';
 import {
   analyticsHeatmapQuerySchema,
+  analyticsDashboardQuerySchema,
   analyticsRankingQuerySchema,
   analyticsHistoryQuerySchema,
   analyticsInsightsQuerySchema,
   analyticsSummaryQuerySchema,
   type AnalyticsHeatmapQuery,
+  type AnalyticsDashboardQuery,
   type AnalyticsRankingQuery,
   type AnalyticsHistoryQuery,
   type AnalyticsInsightsQuery,
@@ -49,6 +52,48 @@ export function analyticsRoutes(app: FastifyInstance) {
       },
     },
   } as const;
+
+  app.get<{ Querystring: AnalyticsDashboardQuery }>(
+    '/analytics/dashboard',
+    {
+      preValidation: validateRequest({ query: analyticsDashboardQuerySchema }),
+      schema: {
+        tags: ['analytics'],
+        summary: 'Get the analytics dashboard in one bounded read',
+        description:
+          'Returns the existing summary, history, insights, heatmap, category, and habit contracts from one shared repository snapshot.',
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            period: {
+              type: 'string',
+              enum: ['day', 'week', 'month'],
+              default: 'week',
+            },
+            date: { type: 'string', format: 'date' },
+            historyPeriod: {
+              type: 'string',
+              enum: ['7d', '30d', '90d'],
+              default: '30d',
+            },
+            heatmapPeriod: {
+              type: 'string',
+              enum: ['90d', '180d', '365d'],
+              default: '365d',
+            },
+          },
+        },
+        response: {
+          200: successResponseJsonSchema(analyticsDashboardJsonSchema),
+          400: errorResponseJsonSchema,
+          401: errorResponseJsonSchema,
+          500: errorResponseJsonSchema,
+        },
+      },
+    },
+    analyticsController.dashboard,
+  );
 
   app.get<{ Querystring: AnalyticsRankingQuery }>(
     '/analytics/categories',

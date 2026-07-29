@@ -26,6 +26,23 @@ Plugins and routes do not contain domain behavior. Future modules should keep
 transport logic in controllers, application logic in services, and persistence
 behind repositories.
 
+## Runtime lifecycle
+
+`src/server.ts` owns the HTTP process lifecycle. `SIGINT` and `SIGTERM` stop
+Fastify from accepting new work and run Fastify close hooks; the database
+plugin then closes the PostgreSQL client pool. Repeated shutdown requests share
+one promise, so owned resources close once.
+
+Shutdown has a ten-second deadline. A clean signal exits with code 0, while
+startup errors, unhandled rejections, and uncaught exceptions close resources
+and retain a non-zero exit code. If an owned close hook hangs or fails, the
+process logs `server_shutdown_failed` and forces termination. Containers should
+send `SIGTERM` and provide a grace period longer than ten seconds.
+
+The Reminder scheduler is a separate process and owns its own loop, active
+tick, provider composition, and database shutdown. Stopping the HTTP API does
+not attempt to control that process or change scheduler delivery semantics.
+
 ## API versioning
 
 All public application routes must be registered beneath `/api/v1`. Health,
@@ -205,6 +222,12 @@ correlated schedule and check-in projections; the service owns timezone and
 date-range resolution, recurrence evaluation, capping, aggregation, and
 rounding. Three fixed queries avoid N+1 behavior; no derived analytics are
 persisted.
+
+The Analytics page uses the request-scoped `/api/v1/analytics/dashboard`
+composition endpoint. It resolves timezone and loads one bounded shared record
+set, then derives the existing analytics contracts from that set. Standalone
+analytics endpoints remain supported. The page-level SQL statement budget is
+therefore three instead of eighteen.
 
 See [`analytics.md`](analytics.md) for the endpoint contract and formulas.
 Milestone 4.0B also verified the OpenAPI schema and live endpoint registration

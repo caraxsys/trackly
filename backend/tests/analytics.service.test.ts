@@ -18,6 +18,7 @@ function record(
 ): AnalyticsHabitRecord {
   return {
     id: 'habit-1',
+    isActive: true,
     frequencyType: 'daily',
     targetCount: 1,
     startDate: '2026-01-01',
@@ -79,6 +80,65 @@ function repeat<T>(value: T, length: number): T[] {
 }
 
 describe('analytics query service', () => {
+  it('builds the complete dashboard from one bounded repository load', async () => {
+    const records = [
+      record({
+        checkIns: [{ date: '2026-07-27', completedCount: 1 }],
+        category: { categoryId: 'cat-1', name: 'Health' },
+        name: 'Walk',
+      }),
+    ];
+    const { service, listHabitRecords } = setup(records, 'UTC');
+    const result = await service.getDashboard({
+      userId: 'user-1',
+      period: 'week',
+      historyPeriod: '30d',
+      heatmapPeriod: '365d',
+      now: new Date('2026-07-29T12:00:00.000Z'),
+    });
+
+    expect(listHabitRecords).toHaveBeenCalledTimes(1);
+    expect(listHabitRecords).toHaveBeenCalledWith(
+      'user-1',
+      '2025-07-30',
+      '2026-08-02',
+      { includeInactive: true, includeHistoricalCheckIns: true },
+    );
+    expect(result.summary).toMatchObject({
+      period: 'week',
+      startDate: '2026-07-27',
+      endDate: '2026-08-02',
+      scheduledCount: 7,
+      completedCount: 1,
+    });
+    expect(result.history.history).toHaveLength(30);
+    expect(result.insights.startDate).toBe(result.history.startDate);
+    expect(result.heatmap.days).toHaveLength(365);
+    expect(result.habits.habits[0]?.name).toBe('Walk');
+    expect(result.categories.categories[0]?.name).toBe('Health');
+  });
+
+  it('keeps inactive habits out of dashboard summaries but in rankings', async () => {
+    const { service } = setup([
+      record({ id: 'active', name: 'Active' }),
+      record({ id: 'inactive', name: 'Inactive', isActive: false }),
+    ]);
+    const result = await service.getDashboard({
+      userId: 'user-1',
+      period: 'day',
+      historyPeriod: '7d',
+      heatmapPeriod: '90d',
+      now: new Date('2026-07-29T12:00:00.000Z'),
+    });
+
+    expect(result.summary.scheduledCount).toBe(1);
+    expect(result.history.history.at(-1)?.scheduledCount).toBe(1);
+    expect(result.habits.habits.map(({ name }) => name)).toEqual([
+      'Active',
+      'Inactive',
+    ]);
+  });
+
   it('ranks habits and rolls category totals deterministically', async () => {
     const { service } = setup([
       record({

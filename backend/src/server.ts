@@ -1,16 +1,37 @@
 import { buildApp } from './app.js';
 import { environment } from './config/environment.js';
+import { createGracefulShutdown } from './runtime/graceful-shutdown.js';
 
 const app = await buildApp();
+const shutdown = createGracefulShutdown({
+  close: () => app.close(),
+  logger: app.log,
+  timeoutMs: 10_000,
+  setExitCode: (code) => {
+    process.exitCode = code;
+  },
+  forceExit: (code) => process.exit(code),
+});
 
-const shutdown = async (signal: NodeJS.Signals) => {
-  app.log.info({ signal }, 'Gracefully shutting down');
-  await app.close();
-  process.exit(0);
-};
-
-process.on('SIGINT', () => void shutdown('SIGINT'));
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('uncaughtException', (error) => {
+  app.log.fatal(
+    { event: 'server_fatal_error', errorName: error.name },
+    'Uncaught exception',
+  );
+  void shutdown('uncaughtException', 1, error);
+});
+process.once('unhandledRejection', (error) => {
+  app.log.fatal(
+    {
+      event: 'server_fatal_error',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    },
+    'Unhandled rejection',
+  );
+  void shutdown('unhandledRejection', 1, error);
+});
 
 try {
   await app.listen({
@@ -18,6 +39,12 @@ try {
     port: environment.BACKEND_PORT,
   });
 } catch (error) {
-  app.log.error(error);
-  process.exit(1);
+  app.log.error(
+    {
+      event: 'server_startup_failed',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    },
+    'Server startup failed',
+  );
+  await shutdown('startupError', 1, error);
 }
