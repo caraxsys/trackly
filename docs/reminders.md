@@ -169,3 +169,89 @@ The scheduler currently determines which Reminders are eligible. It does not
 send notifications. It provides no exactly-once guarantee, delivery retry,
 history, or repeated-hour deduplication; those responsibilities remain in a
 future delivery milestone.
+
+## Notification delivery foundation
+
+Eligible Reminder occurrences now enter a provider-neutral delivery pipeline:
+
+```text
+Scheduler runner
+  → eligibility service
+  → delivery coordinator
+  → durable occurrence claim
+  → dispatcher
+  → Noop provider
+  → terminal delivery status
+```
+
+The delivery layer does not own eligibility, Habit schedules, timezone
+resolution, or scheduler timing. It receives the canonical eligible occurrence
+produced by the scheduling domain.
+
+### Occurrence identity and deduplication
+
+An occurrence contains the Reminder ID, canonical timezone, local calendar
+date, and canonical local `HH:mm`. Its versioned key is encoded as an
+unambiguous JSON tuple:
+
+```text
+[1, reminderId, timezone, scheduledLocalDate, scheduledLocalTime]
+```
+
+The key contains no process ID, server timestamp, random value, provider, or
+attempt number. PostgreSQL enforces a unique occurrence key. Atomic
+`ON CONFLICT DO NOTHING` claims ensure that concurrent processes resolve the
+same occurrence record and only the successful claimant can invoke a provider.
+Process restarts and repeated ticks therefore do not create another record or
+dispatch an already claimed occurrence.
+
+The current schema models one delivery record per logical occurrence,
+independent of provider. Multi-channel fan-out may later evolve toward a
+separate occurrence record and channel-attempt records.
+
+### Delivery lifecycle
+
+Statuses are:
+
+- `pending`: the occurrence is durably claimed;
+- `processing`: provider invocation is being attempted;
+- `delivered`: the provider contract returned success;
+- `failed`: provider or orchestration execution failed;
+- `skipped`: a claimed occurrence was intentionally not dispatched.
+
+Allowed automatic transitions are `pending → processing`,
+`processing → delivered`, `processing → failed`, and `pending → skipped`.
+Conditional database updates prevent terminal `delivered` or `skipped` records
+from returning to processing or being overwritten. Failed deliveries are not
+automatically retried.
+
+`attempt_count` starts at zero and increments when a pending record enters
+processing. For the Noop provider, `delivered` means only that the provider
+contract completed successfully.
+
+### Provider and dispatcher boundary
+
+Providers receive only delivery and occurrence identifiers, local scheduling
+values, timezone, and minimal title/body content. The dispatcher uses an
+explicit provider registry and never falls back for unsupported names.
+
+`NoopNotificationProvider` is the only provider in this foundation. It performs
+no network or external I/O, returns deterministic success, and logs no content
+payload. The Noop provider performs no external delivery. A `delivered` Noop
+record only confirms that the delivery pipeline and provider contract completed
+successfully.
+
+### Scheduler aggregation and failures
+
+The scheduler processes eligible occurrences sequentially. Aggregate tick
+results distinguish eligible, newly claimed, delivered, failed, duplicate, and
+skipped counts. A claim or provider failure for one occurrence does not prevent
+remaining occurrences from being processed. Eligibility-query failure still
+fails the entire tick.
+
+No automatic retry, retry backoff, delivery queue, dead-letter queue,
+distributed lock, provider message ID, `delivered_at`, `read_at`, click
+tracking, Web Push, subscription, service worker, or frontend notification flow
+exists. Future milestones can add Web Push behind the dispatcher contract and
+define retry and richer history semantics without moving eligibility logic into
+the delivery domain.

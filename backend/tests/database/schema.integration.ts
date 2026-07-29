@@ -18,6 +18,8 @@ import { createHabitCommandService } from '../../src/modules/habits/habit-comman
 import { createHabitStreakQueryRepository } from '../../src/modules/habits/habit-streak.repository.js';
 import { createHabitStreakQueryService } from '../../src/modules/habits/habit-streak.service.js';
 import { createHabitService } from '../../src/modules/habits/habit.service.js';
+import { createNotificationDeliveryRepository } from '../../src/modules/notifications/notification-delivery.repository.js';
+import { mapEligibleReminderToOccurrence } from '../../src/modules/notifications/notification-occurrence.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
 import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
 import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
@@ -32,6 +34,7 @@ import {
   habitCheckIns,
   habitSchedules,
   habits,
+  notificationDeliveries,
   reminders,
   tasks,
   user,
@@ -215,12 +218,13 @@ describe('core database domain schema', () => {
           'user',
           'session',
           'account',
-          'verification'
-          ,'reminders'
+          'verification',
+          'reminders',
+          'notification_deliveries'
         )
     `);
 
-    expect(result[0]?.table_count).toBe(13);
+    expect(result[0]?.table_count).toBe(14);
   });
 
   it('supports registration, login, persistent sessions, and logout', async () => {
@@ -2300,6 +2304,134 @@ describe('core database domain schema', () => {
     `);
     expect(indexes.map(({ indexname }) => indexname)).toContain(
       'reminders_habit_id_enabled_idx',
+    );
+  });
+
+  it('durably claims Notification occurrences and enforces lifecycle transitions', async () => {
+    const userId = await createTestUser();
+    const habitId = await insertHabit(userId);
+    const [reminder] = await database
+      .insert(reminders)
+      .values({ userId, habitId, timeOfDay: '08:00' })
+      .returning({ id: reminders.id });
+    if (!reminder) throw new Error('Reminder fixture was not created.');
+    const repository = createNotificationDeliveryRepository(database);
+    const occurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-10',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+
+    const claims = await Promise.all([
+      repository.claimOccurrence(occurrence, 'noop'),
+      repository.claimOccurrence(occurrence, 'noop'),
+    ]);
+    expect(claims.filter(({ claimed }) => claimed)).toHaveLength(1);
+    expect(claims.filter(({ claimed }) => !claimed)).toHaveLength(1);
+    expect(
+      await database.$count(
+        notificationDeliveries,
+        eq(notificationDeliveries.occurrenceKey, occurrence.occurrenceKey),
+      ),
+    ).toBe(1);
+    const claimed = claims.find(({ claimed }) => claimed);
+    if (!claimed?.claimed) throw new Error('Occurrence was not claimed.');
+    expect(claimed.delivery).toMatchObject({
+      status: 'pending',
+      provider: 'noop',
+      attemptCount: 0,
+      scheduledLocalDate: '2026-08-10',
+      scheduledLocalTime: '08:00:00',
+    });
+    expect(await repository.markProcessing(claimed.delivery.id)).toMatchObject({
+      status: 'processing',
+      attemptCount: 1,
+    });
+    expect((await repository.markDelivered(claimed.delivery.id))?.status).toBe(
+      'delivered',
+    );
+    await expect(
+      repository.markFailed(claimed.delivery.id),
+    ).resolves.toBeNull();
+    await expect(
+      repository.markProcessing(claimed.delivery.id),
+    ).resolves.toBeNull();
+
+    const failedOccurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-11',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+    const failedClaim = await repository.claimOccurrence(
+      failedOccurrence,
+      'noop',
+    );
+    if (!failedClaim.claimed)
+      throw new Error('Failure fixture was not claimed.');
+    await repository.markProcessing(failedClaim.delivery.id);
+    expect((await repository.markFailed(failedClaim.delivery.id))?.status).toBe(
+      'failed',
+    );
+
+    const skippedOccurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-12',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+    const skippedClaim = await repository.claimOccurrence(
+      skippedOccurrence,
+      'noop',
+    );
+    if (!skippedClaim.claimed) throw new Error('Skip fixture was not claimed.');
+    expect(
+      (await repository.markSkipped(skippedClaim.delivery.id))?.status,
+    ).toBe('skipped');
+    await expect(
+      repository.markProcessing(skippedClaim.delivery.id),
+    ).resolves.toBeNull();
+
+    await expectPostgresError(
+      database.insert(notificationDeliveries).values({
+        ...occurrence,
+        provider: 'noop',
+      }),
+      '23505',
+    );
+    await expectPostgresError(
+      database.insert(notificationDeliveries).values({
+        ...occurrence,
+        occurrenceKey: 'missing-reminder',
+        reminderId: randomUUID(),
+        provider: 'noop',
+      }),
+      '23503',
+    );
+
+    const indexes = await database.execute<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'notification_deliveries'
+    `);
+    expect(indexes.map(({ indexname }) => indexname)).toEqual(
+      expect.arrayContaining([
+        'notification_deliveries_occurrence_key_uidx',
+        'notification_deliveries_reminder_id_idx',
+        'notification_deliveries_user_id_idx',
+        'notification_deliveries_status_idx',
+      ]),
     );
   });
 });

@@ -20,3 +20,12 @@ export const goalStatus = pgEnum('goal_status', [
   'completed',
   'cancelled',
 ]);
+
+export const notificationDeliveryStatus = pgEnum(
+  'notification_delivery_status',
+  ['pending', 'processing', 'delivered', 'failed', 'skipped'],
+);
+
+export const notificationProviderName = pgEnum('notification_provider_name', [
+  'noop',
+]);

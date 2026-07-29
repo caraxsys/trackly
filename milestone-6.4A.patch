@@ -1,0 +1,648 @@
+diff --git a/backend/src/db/migrations/meta/_journal.json b/backend/src/db/migrations/meta/_journal.json
+index 9c11abc..eec9c27 100644
+--- a/backend/src/db/migrations/meta/_journal.json
++++ b/backend/src/db/migrations/meta/_journal.json
+@@ -43,6 +43,13 @@
+       "when": 1785289180500,
+       "tag": "0005_steep_next_avengers",
+       "breakpoints": true
++    },
++    {
++      "idx": 6,
++      "version": "7",
++      "when": 1785296102840,
++      "tag": "0006_brown_piledriver",
++      "breakpoints": true
+     }
+   ]
+ }
+\ No newline at end of file
+diff --git a/backend/src/db/schema/enums.ts b/backend/src/db/schema/enums.ts
+index 4a3ec87..5079af5 100644
+--- a/backend/src/db/schema/enums.ts
++++ b/backend/src/db/schema/enums.ts
+@@ -20,3 +20,12 @@ export const goalStatus = pgEnum('goal_status', [
+   'completed',
+   'cancelled',
+ ]);
++
++export const notificationDeliveryStatus = pgEnum(
++  'notification_delivery_status',
++  ['pending', 'processing', 'delivered', 'failed', 'skipped'],
++);
++
++export const notificationProviderName = pgEnum('notification_provider_name', [
++  'noop',
++]);
+diff --git a/backend/src/db/schema/index.ts b/backend/src/db/schema/index.ts
+index 2155d4d..cfcec7f 100644
+--- a/backend/src/db/schema/index.ts
++++ b/backend/src/db/schema/index.ts
+@@ -6,6 +6,7 @@ export * from './goals.js';
+ export * from './habit-check-ins.js';
+ export * from './habit-schedules.js';
+ export * from './habits.js';
++export * from './notification-deliveries.js';
+ export * from './reminders.js';
+ export * from './relations.js';
+ export * from './shared.js';
+diff --git a/backend/src/db/schema/relations.ts b/backend/src/db/schema/relations.ts
+index 6b3c08b..3b4287f 100644
+--- a/backend/src/db/schema/relations.ts
++++ b/backend/src/db/schema/relations.ts
+@@ -6,6 +6,7 @@ import { goals } from './goals.js';
+ import { habitCheckIns } from './habit-check-ins.js';
+ import { habitSchedules } from './habit-schedules.js';
+ import { habits } from './habits.js';
++import { notificationDeliveries } from './notification-deliveries.js';
+ import { reminders } from './reminders.js';
+ import { tasks } from './tasks.js';
+ 
+@@ -16,13 +17,24 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
+   reminders: many(reminders),
+ }));
+ 
+-export const remindersRelations = relations(reminders, ({ one }) => ({
++export const remindersRelations = relations(reminders, ({ one, many }) => ({
+   habit: one(habits, {
+     fields: [reminders.habitId],
+     references: [habits.id],
+   }),
++  deliveries: many(notificationDeliveries),
+ }));
+ 
++export const notificationDeliveriesRelations = relations(
++  notificationDeliveries,
++  ({ one }) => ({
++    reminder: one(reminders, {
++      fields: [notificationDeliveries.reminderId],
++      references: [reminders.id],
++    }),
++  }),
++);
++
+ export const habitsRelations = relations(habits, ({ one, many }) => ({
+   category: one(categories, {
+     fields: [habits.categoryId],
+diff --git a/backend/src/scheduler/reminder-scheduler.main.ts b/backend/src/scheduler/reminder-scheduler.main.ts
+index b876202..9436aaf 100644
+--- a/backend/src/scheduler/reminder-scheduler.main.ts
++++ b/backend/src/scheduler/reminder-scheduler.main.ts
+@@ -8,6 +8,10 @@ import {
+ import { createLogger } from '../config/logger.js';
+ import { createReminderSchedulingRepository } from '../modules/reminders/reminder-scheduling.repository.js';
+ import { createReminderEligibilityService } from '../modules/reminders/reminder-scheduling.service.js';
++import { createNotificationDeliveryRepository } from '../modules/notifications/notification-delivery.repository.js';
++import { createNotificationDeliveryCoordinator } from '../modules/notifications/notification-delivery.coordinator.js';
++import { createNotificationDispatcher } from '../modules/notifications/notification-dispatcher.js';
++import { NoopNotificationProvider } from '../modules/notifications/notification-provider.js';
+ import { createReminderSchedulerLoop } from './reminder-scheduler.loop.js';
+ import {
+   createReminderSchedulerRunner,
+@@ -22,7 +26,20 @@ export async function runReminderSchedulerProcess(mode: ReminderSchedulerMode) {
+   const service = createReminderEligibilityService(
+     createReminderSchedulingRepository(database),
+   );
+-  const runner = createReminderSchedulerRunner({ clock, logger, service });
++  const coordinator = createNotificationDeliveryCoordinator({
++    repository: createNotificationDeliveryRepository(database),
++    dispatcher: createNotificationDispatcher([
++      new NoopNotificationProvider(logger),
++    ]),
++    provider: 'noop',
++    logger,
++  });
++  const runner = createReminderSchedulerRunner({
++    clock,
++    coordinator,
++    logger,
++    service,
++  });
+   const loop = createReminderSchedulerLoop({ clock, logger, runner });
+ 
+   try {
+@@ -39,6 +56,11 @@ export async function runReminderSchedulerProcess(mode: ReminderSchedulerMode) {
+           mode,
+           status: result.status,
+           eligibleCount: result.eligibleCount,
++          claimedCount: result.claimedCount,
++          deliveredCount: result.deliveredCount,
++          failedCount: result.failedCount,
++          duplicateCount: result.duplicateCount,
++          skippedCount: result.skippedCount,
+           durationMs: result.durationMs,
+         },
+         'Reminder scheduler one-shot stopped',
+diff --git a/backend/src/scheduler/reminder-scheduler.runner.ts b/backend/src/scheduler/reminder-scheduler.runner.ts
+index c825bbc..d9763d7 100644
+--- a/backend/src/scheduler/reminder-scheduler.runner.ts
++++ b/backend/src/scheduler/reminder-scheduler.runner.ts
+@@ -1,6 +1,8 @@
+ import type { AppLogger } from '../config/logger.js';
+ import type { ReminderEligibilityService } from '../modules/reminders/reminder-scheduling.service.js';
+ import type { EligibleReminder } from '../modules/reminders/reminder-scheduling.types.js';
++import type { NotificationDeliveryCoordinator } from '../modules/notifications/notification-delivery.coordinator.js';
++import type { NotificationDeliveryResult } from '../modules/notifications/notification-delivery.types.js';
+ 
+ export interface SchedulerClock {
+   now(): Date;
+@@ -10,10 +12,16 @@ export interface ReminderSchedulerTickResult {
+   completedAt: string;
+   currentInstant: string;
+   durationMs: number;
++  claimedCount: number;
++  deliveredCount: number;
++  deliveryResults: NotificationDeliveryResult[];
++  duplicateCount: number;
+   eligibleCount: number;
+   eligibleReminders: EligibleReminder[];
++  failedCount: number;
++  skippedCount: number;
+   startedAt: string;
+-  status: 'completed' | 'failed';
++  status: 'completed' | 'completed_with_failures' | 'failed';
+ }
+ 
+ export function normalizeTickInstant(instant: Date) {
+@@ -24,10 +32,12 @@ export function normalizeTickInstant(instant: Date) {
+ 
+ export function createReminderSchedulerRunner({
+   clock,
++  coordinator,
+   logger,
+   service,
+ }: {
+   clock: SchedulerClock;
++  coordinator: Pick<NotificationDeliveryCoordinator, 'process'>;
+   logger: Pick<AppLogger, 'error' | 'info'>;
+   service: Pick<ReminderEligibilityService, 'listEligible'>;
+ }) {
+@@ -41,21 +51,77 @@ export function createReminderSchedulerRunner({
+       );
+       try {
+         const eligibleReminders = await service.listEligible(tickInstant);
++        const deliveryResults: NotificationDeliveryResult[] = [];
++        let orchestrationFailures = 0;
++        for (const eligible of eligibleReminders) {
++          try {
++            deliveryResults.push(await coordinator.process(eligible));
++          } catch (error) {
++            orchestrationFailures += 1;
++            logger.error(
++              {
++                event: 'notification_delivery_failed',
++                errorName: error instanceof Error ? error.name : 'UnknownError',
++              },
++              'Notification delivery orchestration failed',
++            );
++          }
++        }
+         const completedAt = clock.now();
++        const claimedCount = deliveryResults.filter(
++          ({ claimed }) => claimed,
++        ).length;
++        const deliveredCount = deliveryResults.filter(
++          ({ status }) => status === 'delivered',
++        ).length;
++        const failedCount =
++          orchestrationFailures +
++          deliveryResults.filter(({ status }) => status === 'failed').length;
++        const duplicateCount = deliveryResults.filter(
++          ({ status }) => status === 'duplicate',
++        ).length;
++        const skippedCount = deliveryResults.filter(
++          ({ status }) => status === 'skipped',
++        ).length;
+         const result: ReminderSchedulerTickResult = {
+-          status: 'completed',
++          status: failedCount > 0 ? 'completed_with_failures' : 'completed',
+           startedAt: startedAt.toISOString(),
+           completedAt: completedAt.toISOString(),
+           currentInstant: tickInstant.toISOString(),
+           durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+           eligibleCount: eligibleReminders.length,
+           eligibleReminders,
++          deliveryResults,
++          claimedCount,
++          deliveredCount,
++          failedCount,
++          duplicateCount,
++          skippedCount,
+         };
++        logger.info(
++          {
++            event: 'reminder_scheduler_delivery_summary',
++            tickInstant,
++            eligibleCount: result.eligibleCount,
++            claimedCount,
++            deliveredCount,
++            failedCount,
++            duplicateCount,
++            skippedCount,
++            status: result.status,
++          },
++          'Reminder scheduler delivery summary',
++        );
+         logger.info(
+           {
+             event: 'reminder_scheduler_tick_completed',
+             tickInstant,
+             eligibleCount: result.eligibleCount,
++            claimedCount,
++            deliveredCount,
++            failedCount,
++            duplicateCount,
++            skippedCount,
+             durationMs: result.durationMs,
+             status: result.status,
+           },
+@@ -72,6 +138,12 @@ export function createReminderSchedulerRunner({
+           durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+           eligibleCount: 0,
+           eligibleReminders: [],
++          deliveryResults: [],
++          claimedCount: 0,
++          deliveredCount: 0,
++          failedCount: 0,
++          duplicateCount: 0,
++          skippedCount: 0,
+         };
+         logger.error(
+           {
+diff --git a/backend/tests/database/schema.integration.ts b/backend/tests/database/schema.integration.ts
+index e427c86..8b6131c 100644
+--- a/backend/tests/database/schema.integration.ts
++++ b/backend/tests/database/schema.integration.ts
+@@ -18,6 +18,8 @@ import { createHabitCommandService } from '../../src/modules/habits/habit-comman
+ import { createHabitStreakQueryRepository } from '../../src/modules/habits/habit-streak.repository.js';
+ import { createHabitStreakQueryService } from '../../src/modules/habits/habit-streak.service.js';
+ import { createHabitService } from '../../src/modules/habits/habit.service.js';
++import { createNotificationDeliveryRepository } from '../../src/modules/notifications/notification-delivery.repository.js';
++import { mapEligibleReminderToOccurrence } from '../../src/modules/notifications/notification-occurrence.js';
+ import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
+ import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
+ import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
+@@ -32,6 +34,7 @@ import {
+   habitCheckIns,
+   habitSchedules,
+   habits,
++  notificationDeliveries,
+   reminders,
+   tasks,
+   user,
+@@ -215,12 +218,13 @@ describe('core database domain schema', () => {
+           'user',
+           'session',
+           'account',
+-          'verification'
+-          ,'reminders'
++          'verification',
++          'reminders',
++          'notification_deliveries'
+         )
+     `);
+ 
+-    expect(result[0]?.table_count).toBe(13);
++    expect(result[0]?.table_count).toBe(14);
+   });
+ 
+   it('supports registration, login, persistent sessions, and logout', async () => {
+@@ -2302,4 +2306,132 @@ describe('core database domain schema', () => {
+       'reminders_habit_id_enabled_idx',
+     );
+   });
++
++  it('durably claims Notification occurrences and enforces lifecycle transitions', async () => {
++    const userId = await createTestUser();
++    const habitId = await insertHabit(userId);
++    const [reminder] = await database
++      .insert(reminders)
++      .values({ userId, habitId, timeOfDay: '08:00' })
++      .returning({ id: reminders.id });
++    if (!reminder) throw new Error('Reminder fixture was not created.');
++    const repository = createNotificationDeliveryRepository(database);
++    const occurrence = mapEligibleReminderToOccurrence({
++      reminderId: reminder.id,
++      habitId,
++      userId,
++      timezone: 'Asia/Jakarta',
++      localDate: '2026-08-10',
++      localTime: '08:00',
++      timeOfDay: '08:00',
++    });
++
++    const claims = await Promise.all([
++      repository.claimOccurrence(occurrence, 'noop'),
++      repository.claimOccurrence(occurrence, 'noop'),
++    ]);
++    expect(claims.filter(({ claimed }) => claimed)).toHaveLength(1);
++    expect(claims.filter(({ claimed }) => !claimed)).toHaveLength(1);
++    expect(
++      await database.$count(
++        notificationDeliveries,
++        eq(notificationDeliveries.occurrenceKey, occurrence.occurrenceKey),
++      ),
++    ).toBe(1);
++    const claimed = claims.find(({ claimed }) => claimed);
++    if (!claimed?.claimed) throw new Error('Occurrence was not claimed.');
++    expect(claimed.delivery).toMatchObject({
++      status: 'pending',
++      provider: 'noop',
++      attemptCount: 0,
++      scheduledLocalDate: '2026-08-10',
++      scheduledLocalTime: '08:00:00',
++    });
++    expect(await repository.markProcessing(claimed.delivery.id)).toMatchObject({
++      status: 'processing',
++      attemptCount: 1,
++    });
++    expect((await repository.markDelivered(claimed.delivery.id))?.status).toBe(
++      'delivered',
++    );
++    await expect(
++      repository.markFailed(claimed.delivery.id),
++    ).resolves.toBeNull();
++    await expect(
++      repository.markProcessing(claimed.delivery.id),
++    ).resolves.toBeNull();
++
++    const failedOccurrence = mapEligibleReminderToOccurrence({
++      reminderId: reminder.id,
++      habitId,
++      userId,
++      timezone: 'Asia/Jakarta',
++      localDate: '2026-08-11',
++      localTime: '08:00',
++      timeOfDay: '08:00',
++    });
++    const failedClaim = await repository.claimOccurrence(
++      failedOccurrence,
++      'noop',
++    );
++    if (!failedClaim.claimed)
++      throw new Error('Failure fixture was not claimed.');
++    await repository.markProcessing(failedClaim.delivery.id);
++    expect((await repository.markFailed(failedClaim.delivery.id))?.status).toBe(
++      'failed',
++    );
++
++    const skippedOccurrence = mapEligibleReminderToOccurrence({
++      reminderId: reminder.id,
++      habitId,
++      userId,
++      timezone: 'Asia/Jakarta',
++      localDate: '2026-08-12',
++      localTime: '08:00',
++      timeOfDay: '08:00',
++    });
++    const skippedClaim = await repository.claimOccurrence(
++      skippedOccurrence,
++      'noop',
++    );
++    if (!skippedClaim.claimed) throw new Error('Skip fixture was not claimed.');
++    expect(
++      (await repository.markSkipped(skippedClaim.delivery.id))?.status,
++    ).toBe('skipped');
++    await expect(
++      repository.markProcessing(skippedClaim.delivery.id),
++    ).resolves.toBeNull();
++
++    await expectPostgresError(
++      database.insert(notificationDeliveries).values({
++        ...occurrence,
++        provider: 'noop',
++      }),
++      '23505',
++    );
++    await expectPostgresError(
++      database.insert(notificationDeliveries).values({
++        ...occurrence,
++        occurrenceKey: 'missing-reminder',
++        reminderId: randomUUID(),
++        provider: 'noop',
++      }),
++      '23503',
++    );
++
++    const indexes = await database.execute<{ indexname: string }>(sql`
++      select indexname
++      from pg_indexes
++      where schemaname = 'public'
++        and tablename = 'notification_deliveries'
++    `);
++    expect(indexes.map(({ indexname }) => indexname)).toEqual(
++      expect.arrayContaining([
++        'notification_deliveries_occurrence_key_uidx',
++        'notification_deliveries_reminder_id_idx',
++        'notification_deliveries_user_id_idx',
++        'notification_deliveries_status_idx',
++      ]),
++    );
++  });
+ });
+diff --git a/backend/tests/reminder-scheduler.runner.test.ts b/backend/tests/reminder-scheduler.runner.test.ts
+index e547481..6829275 100644
+--- a/backend/tests/reminder-scheduler.runner.test.ts
++++ b/backend/tests/reminder-scheduler.runner.test.ts
+@@ -17,6 +17,16 @@ function logger() {
+   return { info: vi.fn(), error: vi.fn() };
+ }
+ 
++function coordinator() {
++  return {
++    process: vi.fn().mockResolvedValue({
++      claimed: true,
++      deliveryId: 'delivery-1',
++      status: 'delivered',
++    }),
++  };
++}
++
+ describe('Reminder scheduler runner', () => {
+   it('normalizes and passes one explicit instant to the eligibility service', async () => {
+     const listEligible = vi.fn().mockResolvedValue([eligible]);
+@@ -27,6 +37,7 @@ describe('Reminder scheduler runner', () => {
+     ];
+     const runner = createReminderSchedulerRunner({
+       clock: { now: () => times.shift() ?? new Date(0) },
++      coordinator: coordinator(),
+       logger: log,
+       service: { listEligible },
+     });
+@@ -41,6 +52,18 @@ describe('Reminder scheduler runner', () => {
+       durationMs: 25,
+       eligibleCount: 1,
+       eligibleReminders: [eligible],
++      deliveryResults: [
++        {
++          claimed: true,
++          deliveryId: 'delivery-1',
++          status: 'delivered',
++        },
++      ],
++      claimedCount: 1,
++      deliveredCount: 1,
++      failedCount: 0,
++      duplicateCount: 0,
++      skippedCount: 0,
+     });
+     expect(listEligible).toHaveBeenCalledOnce();
+     expect(listEligible).toHaveBeenCalledWith(
+@@ -52,6 +75,7 @@ describe('Reminder scheduler runner', () => {
+   it('reports a successful zero-result tick', async () => {
+     const runner = createReminderSchedulerRunner({
+       clock: { now: () => new Date('2026-07-29T03:15:00.000Z') },
++      coordinator: coordinator(),
+       logger: logger(),
+       service: { listEligible: vi.fn().mockResolvedValue([]) },
+     });
+@@ -61,6 +85,12 @@ describe('Reminder scheduler runner', () => {
+       status: 'completed',
+       eligibleCount: 0,
+       eligibleReminders: [],
++      deliveryResults: [],
++      claimedCount: 0,
++      deliveredCount: 0,
++      failedCount: 0,
++      duplicateCount: 0,
++      skippedCount: 0,
+       durationMs: 0,
+     });
+   });
+@@ -69,6 +99,7 @@ describe('Reminder scheduler runner', () => {
+     const log = logger();
+     const runner = createReminderSchedulerRunner({
+       clock: { now: () => new Date('2026-07-29T03:15:00.000Z') },
++      coordinator: coordinator(),
+       logger: log,
+       service: {
+         listEligible: vi.fn().mockRejectedValue(new Error('private details')),
+@@ -88,4 +119,34 @@ describe('Reminder scheduler runner', () => {
+       'private details',
+     );
+   });
++
++  it('continues after one delivery failure and reports partial aggregates', async () => {
++    const second = { ...eligible, reminderId: 'reminder-2' };
++    const process = vi
++      .fn()
++      .mockRejectedValueOnce(new Error('claim failed'))
++      .mockResolvedValueOnce({
++        claimed: true,
++        deliveryId: 'delivery-2',
++        status: 'delivered',
++      });
++    const runner = createReminderSchedulerRunner({
++      clock: { now: () => new Date('2026-07-29T03:15:00.000Z') },
++      coordinator: { process },
++      logger: logger(),
++      service: { listEligible: vi.fn().mockResolvedValue([eligible, second]) },
++    });
++    await expect(
++      runner.runTick(new Date('2026-07-29T03:15:00.000Z')),
++    ).resolves.toMatchObject({
++      status: 'completed_with_failures',
++      eligibleCount: 2,
++      claimedCount: 1,
++      deliveredCount: 1,
++      failedCount: 1,
++      duplicateCount: 0,
++      skippedCount: 0,
++    });
++    expect(process).toHaveBeenCalledTimes(2);
++  });
+ });
+diff --git a/docs/reminders.md b/docs/reminders.md
+index a0e5bfa..f6d56ea 100644
+--- a/docs/reminders.md
++++ b/docs/reminders.md
+@@ -169,3 +169,89 @@ The scheduler currently determines which Reminders are eligible. It does not
+ send notifications. It provides no exactly-once guarantee, delivery retry,
+ history, or repeated-hour deduplication; those responsibilities remain in a
+ future delivery milestone.
++
++## Notification delivery foundation
++
++Eligible Reminder occurrences now enter a provider-neutral delivery pipeline:
++
++```text
++Scheduler runner
++  → eligibility service
++  → delivery coordinator
++  → durable occurrence claim
++  → dispatcher
++  → Noop provider
++  → terminal delivery status
++```
++
++The delivery layer does not own eligibility, Habit schedules, timezone
++resolution, or scheduler timing. It receives the canonical eligible occurrence
++produced by the scheduling domain.
++
++### Occurrence identity and deduplication
++
++An occurrence contains the Reminder ID, canonical timezone, local calendar
++date, and canonical local `HH:mm`. Its versioned key is encoded as an
++unambiguous JSON tuple:
++
++```text
++[1, reminderId, timezone, scheduledLocalDate, scheduledLocalTime]
++```
++
++The key contains no process ID, server timestamp, random value, provider, or
++attempt number. PostgreSQL enforces a unique occurrence key. Atomic
++`ON CONFLICT DO NOTHING` claims ensure that concurrent processes resolve the
++same occurrence record and only the successful claimant can invoke a provider.
++Process restarts and repeated ticks therefore do not create another record or
++dispatch an already claimed occurrence.
++
++The current schema models one delivery record per logical occurrence,
++independent of provider. Multi-channel fan-out may later evolve toward a
++separate occurrence record and channel-attempt records.
++
++### Delivery lifecycle
++
++Statuses are:
++
++- `pending`: the occurrence is durably claimed;
++- `processing`: provider invocation is being attempted;
++- `delivered`: the provider contract returned success;
++- `failed`: provider or orchestration execution failed;
++- `skipped`: a claimed occurrence was intentionally not dispatched.
++
++Allowed automatic transitions are `pending → processing`,
++`processing → delivered`, `processing → failed`, and `pending → skipped`.
++Conditional database updates prevent terminal `delivered` or `skipped` records
++from returning to processing or being overwritten. Failed deliveries are not
++automatically retried.
++
++`attempt_count` starts at zero and increments when a pending record enters
++processing. For the Noop provider, `delivered` means only that the provider
++contract completed successfully.
++
++### Provider and dispatcher boundary
++
++Providers receive only delivery and occurrence identifiers, local scheduling
++values, timezone, and minimal title/body content. The dispatcher uses an
++explicit provider registry and never falls back for unsupported names.
++
++`NoopNotificationProvider` is the only provider in this foundation. It performs
++no network or external I/O, returns deterministic success, and logs no content
++payload. The Noop provider performs no external delivery. A `delivered` Noop
++record only confirms that the delivery pipeline and provider contract completed
++successfully.
++
++### Scheduler aggregation and failures
++
++The scheduler processes eligible occurrences sequentially. Aggregate tick
++results distinguish eligible, newly claimed, delivered, failed, duplicate, and
++skipped counts. A claim or provider failure for one occurrence does not prevent
++remaining occurrences from being processed. Eligibility-query failure still
++fails the entire tick.
++
++No automatic retry, retry backoff, delivery queue, dead-letter queue,
++distributed lock, provider message ID, `delivered_at`, `read_at`, click
++tracking, Web Push, subscription, service worker, or frontend notification flow
++exists. Future milestones can add Web Push behind the dispatcher contract and
++define retry and richer history semantics without moving eligibility logic into
++the delivery domain.
