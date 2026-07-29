@@ -16,9 +16,10 @@ Collection parameters are `view`, `date`, `search`, `sort`, `order`, `page`, and
 `asc`, page `1`, and limit `20`; maximum limit is `100`.
 
 `today` applies active date-range and weekday scheduling. `all` includes active
-and inactive non-deleted habits. `inactive` includes only inactive,
-non-deleted habits. All views calculate the selected-date completion projection.
-Soft-deleted and unowned records are always excluded.
+and archived non-deleted habits. `archived` includes only archived,
+non-deleted habits; `inactive` is its compatibility alias. All views calculate
+the selected-date completion projection. Soft-deleted and unowned records are
+always excluded.
 
 Search is trimmed and runs case-insensitively against name and description in
 PostgreSQL. Ordering is deterministic with explicit creation-time and/or ID
@@ -99,7 +100,50 @@ and submits an empty schedule. Weekly and custom schedules require unique,
 ascending ISO weekdays. Edit submissions omit `isActive` so they cannot
 overwrite a concurrent lifecycle transition.
 
-The detail page exposes Edit, Activate/Deactivate, and Delete actions.
+The detail page exposes Edit, Archive/Restore, and Delete actions.
+
+## Archive and restore
+
+Milestone 6.1 defines the existing `is_active = false` persistence state as an
+archived Habit. No competing status column or archive timestamp is introduced.
+The product and canonical APIs use **Archived**, **Archive**, and **Restore**;
+the older inactive, activate, and deactivate names remain temporarily available
+for API compatibility.
+
+The canonical lifecycle endpoints are:
+
+- `POST /api/v1/habits/:id/archive`
+- `POST /api/v1/habits/:id/restore`
+
+The existing `/activate` and `/deactivate` endpoints call the same centralized
+lifecycle transition logic. Repeating a transition returns the established 409
+conflict response. Foreign, missing, soft-deleted, and unowned Habits retain the
+same safe 404 behavior.
+
+`GET /api/v1/habits` accepts `view=archived` for archived, non-deleted Habits.
+`view=all` returns active and archived non-deleted Habits, while the default
+Today view continues to return only active Habits scheduled for the resolved
+local date. `view=inactive` remains a compatibility alias for `archived`.
+Search, ordering, pagination, and deterministic tie-breakers are unchanged.
+Owned archived Habit details remain readable.
+
+Archiving updates only `is_active`. It preserves the Habit schedule, metadata,
+check-ins, streak history, linked Goals, and derived Analytics. Archived Habits
+cannot receive check-ins and do not appear in Today. Restoring reuses the
+original schedule and configuration, allows future scheduled check-ins again,
+and does not create missed check-ins retroactively. Goal status is never
+changed, and historical Goal progress continues to derive from valid check-ins.
+
+Archive remains distinct from soft deletion. Delete continues to set
+`deleted_at`, excludes the Habit from active, archived, and all public views,
+and cannot be reversed through restore. The frontend exposes lifecycle changes
+only through explicit archive/restore actions; create and edit forms do not
+contain lifecycle controls. Archived Habits remain editable so owners can
+correct preserved metadata or schedules before restoring them.
+
+Milestone 6.1 does not add automatic or bulk archival, reminder behavior,
+notifications, archive scheduling, permanent deletion, new recurrence rules,
+or Analytics redesign.
 Lifecycle changes use their dedicated endpoints and accessible, focus-managed
 inline confirmation dialogs. Conflicts receive a safe refresh-oriented message.
 Delete explains soft deletion and redirects to the collection; there is no

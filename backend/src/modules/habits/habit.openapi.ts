@@ -87,7 +87,10 @@ export const habitCollectionDataSchema = {
       type: 'object',
       required: ['view', 'date', 'timezone', 'search', 'sort', 'order'],
       properties: {
-        view: { type: 'string', enum: ['today', 'all', 'inactive'] },
+        view: {
+          type: 'string',
+          enum: ['today', 'all', 'archived', 'inactive'],
+        },
         date: { type: 'string', format: 'date' },
         timezone: { type: 'string' },
         search: { type: 'string' },

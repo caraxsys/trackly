@@ -169,7 +169,7 @@ describe('HabitCheckInControl', () => {
 
     await user.click(button);
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'inactive or not scheduled',
+      'archived or not scheduled',
     );
     expect(screen.getByText('0 / 1 completed')).toBeVisible();
 
@@ -200,9 +200,9 @@ describe('HabitCheckInControl', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders inactive and unscheduled habits as read-only', () => {
+  it('renders archived and unscheduled habits as read-only', () => {
     const { rerender } = renderControl({ isActive: false });
-    expect(screen.getByText('This habit is inactive.')).toBeVisible();
+    expect(screen.getByText('This habit is archived.')).toBeVisible();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
     rerender(

@@ -54,7 +54,7 @@ function collectionFilter(options: ListOptions): SQL {
 
   if (options.view === 'today') {
     filters.push(scheduledCondition(options.date, options.isoWeekday));
-  } else if (options.view === 'inactive') {
+  } else if (options.view === 'archived' || options.view === 'inactive') {
     filters.push(eq(habits.isActive, false));
   }
 

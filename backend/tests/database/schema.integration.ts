@@ -1266,13 +1266,15 @@ describe('core database domain schema', () => {
       page: 1,
       limit: 20,
     };
-    const [today, all, inactive, searched, secondPage] = await Promise.all([
+    const [today, all, inactive, archived, searched, secondPage] =
+      await Promise.all([
       habitService().list({ userId }, base),
       habitService().list(
         { userId },
         { ...base, view: 'all', sort: 'name', order: 'desc' },
       ),
       habitService().list({ userId }, { ...base, view: 'inactive' }),
+      habitService().list({ userId }, { ...base, view: 'archived' }),
       habitService().list(
         { userId },
         { ...base, view: 'all', search: '  reading  ' },
@@ -1281,7 +1283,7 @@ describe('core database domain schema', () => {
         { userId },
         { ...base, view: 'all', page: 2, limit: 2 },
       ),
-    ]);
+      ]);
 
     expect(today.items.map((item) => item.name)).toEqual([
       'beta weekly',
@@ -1305,6 +1307,7 @@ describe('core database domain schema', () => {
       'Alpha Daily',
     ]);
     expect(inactive.items.map((item) => item.name)).toEqual(['Inactive']);
+    expect(archived.items.map((item) => item.name)).toEqual(['Inactive']);
     expect(searched.items.map((item) => item.name)).toEqual(['beta weekly']);
     expect(secondPage.items).toHaveLength(2);
     expect(secondPage.pagination).toMatchObject({
@@ -1662,33 +1665,62 @@ describe('core database domain schema', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('activates and deactivates with conflict and ownership protection', async () => {
+  it('archives and restores with history, conflict, and ownership protection', async () => {
     const userId = await createTestUser();
     const otherUserId = await createTestUser();
     const created = await habitCommandService().create(userId, {
       name: 'Stateful',
       frequencyType: 'daily',
       startDate: '2026-01-01',
-      isActive: false,
+      isActive: true,
     });
 
-    expect(await habitCommandService().activate(userId, created.id)).toEqual({
+    await habitCommandService().checkIn({ userId }, created.id, {
+      date: '2026-01-01',
+      completedCount: 1,
+    });
+    expect(await habitCommandService().archive(userId, created.id)).toEqual({
+      id: created.id,
+      isActive: false,
+    });
+    await expect(
+      habitCommandService().archive(userId, created.id),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      habitCommandService().checkIn({ userId }, created.id, {
+        date: '2026-01-02',
+        completedCount: 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(
+      await database.$count(
+        habitCheckIns,
+        eq(habitCheckIns.habitId, created.id),
+      ),
+    ).toBe(1);
+    expect(await habitCommandService().restore(userId, created.id)).toEqual({
       id: created.id,
       isActive: true,
     });
     await expect(
-      habitCommandService().activate(userId, created.id),
+      habitCommandService().restore(userId, created.id),
     ).rejects.toMatchObject({ statusCode: 409 });
-    expect(await habitCommandService().deactivate(userId, created.id)).toEqual({
-      id: created.id,
-      isActive: false,
-    });
+    await expect(
+      habitCommandService().archive(otherUserId, created.id),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      habitCommandService().checkIn({ userId }, created.id, {
+        date: '2026-01-02',
+        completedCount: 1,
+      }),
+    ).resolves.toMatchObject({ completedCount: 1 });
+
     await expect(
       habitCommandService().deactivate(userId, created.id),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).resolves.toMatchObject({ isActive: false });
     await expect(
-      habitCommandService().activate(otherUserId, created.id),
-    ).rejects.toMatchObject({ statusCode: 404 });
+      habitCommandService().activate(userId, created.id),
+    ).resolves.toMatchObject({ isActive: true });
   });
 
   it('sets absolute habit progress with timezone, schedule, reset, and ownership rules', async () => {

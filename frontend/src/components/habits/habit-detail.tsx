@@ -58,7 +58,7 @@ export function HabitDetail({
             {habit.name}
           </h1>
           <StatusBadge muted={!habit.isActive}>
-            {habit.isActive ? 'Active' : 'Inactive'}
+            {habit.isActive ? 'Active' : 'Archived'}
           </StatusBadge>
           <CategoryBadge category={habit.category} />
         </div>
@@ -80,6 +80,12 @@ export function HabitDetail({
           </Link>
           <HabitLifecycleActions habitId={habit.id} isActive={habit.isActive} />
         </div>
+        {!habit.isActive ? (
+          <p className="text-muted-foreground text-sm">
+            This Habit is archived. Its schedule, check-ins, streaks, linked
+            Goals, and historical Analytics are preserved.
+          </p>
+        ) : null}
       </header>
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <section

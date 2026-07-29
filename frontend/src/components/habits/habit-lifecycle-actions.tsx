@@ -1,14 +1,14 @@
 'use client';
 
-import { LoaderCircle, Power, Trash2 } from 'lucide-react';
+import { Archive, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '@/services/api-error';
 import {
-  activateHabit,
-  deactivateHabit,
+  archiveHabit,
   deleteHabit,
+  restoreHabit,
 } from '@/services/habit-mutation-service';
 
 export function HabitLifecycleActions({
@@ -29,14 +29,14 @@ export function HabitLifecycleActions({
   }, [confirmation]);
 
   async function changeState() {
-    const verb = isActive ? 'deactivate' : 'activate';
+    const verb = isActive ? 'archived' : 'restored';
     setConfirmation(undefined);
     setPending('state');
     setMessage(undefined);
     try {
-      if (isActive) await deactivateHabit(habitId);
-      else await activateHabit(habitId);
-      setMessage(`Habit ${verb}d successfully.`);
+      if (isActive) await archiveHabit(habitId);
+      else await restoreHabit(habitId);
+      setMessage(`Habit ${verb} successfully.`);
       router.refresh();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -87,14 +87,12 @@ export function HabitLifecycleActions({
         >
           {pending === 'state' ? (
             <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+          ) : isActive ? (
+            <Archive aria-hidden="true" className="size-4" />
           ) : (
-            <Power aria-hidden="true" className="size-4" />
+            <RotateCcw aria-hidden="true" className="size-4" />
           )}
-          {pending === 'state'
-            ? 'Updating…'
-            : isActive
-              ? 'Deactivate'
-              : 'Activate'}
+          {pending === 'state' ? 'Updating…' : isActive ? 'Archive' : 'Restore'}
         </button>
         <button
           className="border-destructive/40 text-destructive hover:bg-destructive/5 focus-visible:ring-ring inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium focus-visible:ring-2 disabled:opacity-60"
@@ -121,7 +119,7 @@ export function HabitLifecycleActions({
             <h2 className="font-semibold" id="habit-confirmation-title">
               {confirmation === 'delete'
                 ? 'Delete this habit?'
-                : `${isActive ? 'Deactivate' : 'Activate'} this habit?`}
+                : `${isActive ? 'Archive' : 'Restore'} this habit?`}
             </h2>
             <p
               className="text-muted-foreground mt-1 text-sm"
@@ -130,8 +128,8 @@ export function HabitLifecycleActions({
               {confirmation === 'delete'
                 ? 'It will be removed from normal views. This cannot be undone.'
                 : isActive
-                  ? 'It will stop appearing in scheduled views.'
-                  : 'It will return to scheduled views.'}
+                  ? 'It will leave active workflows, but its schedule and history will be preserved.'
+                  : 'It will return to active and scheduled views using its existing configuration.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -155,8 +153,8 @@ export function HabitLifecycleActions({
               {confirmation === 'delete'
                 ? 'Delete habit'
                 : isActive
-                  ? 'Deactivate habit'
-                  : 'Activate habit'}
+                  ? 'Archive habit'
+                  : 'Restore habit'}
             </button>
           </div>
         </div>

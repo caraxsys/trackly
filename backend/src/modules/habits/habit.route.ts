@@ -82,8 +82,10 @@ export function habitRoutes(app: FastifyInstance) {
           properties: {
             view: {
               type: 'string',
-              enum: ['today', 'all', 'inactive'],
+              enum: ['today', 'all', 'archived', 'inactive'],
               default: 'today',
+              description:
+                'Use archived for inactive non-deleted Habits. inactive remains a compatibility alias.',
             },
             date: { type: 'string', format: 'date' },
             search: { type: 'string', default: '' },
@@ -148,7 +150,7 @@ export function habitRoutes(app: FastifyInstance) {
         tags: ['habits'],
         summary: "Get an authenticated user's habit",
         description:
-          'Returns a read-only habit detail with the current local-date projection. Missing, deleted, and unowned habits return the same 404 response.',
+          'Returns an active or archived owned habit with the current local-date projection. Missing, deleted, and unowned habits return the same 404 response.',
         security: [{ cookieAuth: [] }],
         params: {
           type: 'object',
@@ -269,6 +271,16 @@ export function habitRoutes(app: FastifyInstance) {
   );
 
   for (const [path, summary, handler] of [
+    [
+      '/habits/:id/archive',
+      'Archive a habit',
+      commandController.archive,
+    ],
+    [
+      '/habits/:id/restore',
+      'Restore an archived habit',
+      commandController.restore,
+    ],
     ['/habits/:id/activate', 'Activate a habit', commandController.activate],
     [
       '/habits/:id/deactivate',

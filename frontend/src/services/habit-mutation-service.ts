@@ -30,6 +30,20 @@ export async function deactivateHabit(id: string) {
   return response.data.data;
 }
 
+export async function archiveHabit(id: string) {
+  const response = await httpClient.post<
+    ApiSuccessResponse<{ id: string; isActive: boolean }>
+  >(`/api/v1/habits/${encodeURIComponent(id)}/archive`);
+  return response.data.data;
+}
+
+export async function restoreHabit(id: string) {
+  const response = await httpClient.post<
+    ApiSuccessResponse<{ id: string; isActive: boolean }>
+  >(`/api/v1/habits/${encodeURIComponent(id)}/restore`);
+  return response.data.data;
+}
+
 export async function deleteHabit(id: string) {
   const response = await httpClient.delete<
     ApiSuccessResponse<{ id: string; deleted: true }>

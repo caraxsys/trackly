@@ -103,6 +103,27 @@ export function createHabitCommandService(
   repository: HabitCommandRepository,
   preferenceRepository: PreferenceRepository,
 ) {
+  async function transition(
+    userId: string,
+    id: string,
+    currentState: boolean,
+    nextState: boolean,
+    alreadyMessage: string,
+    changedMessage: string,
+  ) {
+    const current = await repository.findOwned(userId, id);
+    if (!current) throw notFound();
+    if (current.isActive === nextState) throw conflict(alreadyMessage);
+    const updated = await repository.setActive(
+      userId,
+      id,
+      currentState,
+      nextState,
+    );
+    if (!updated) throw conflict(changedMessage);
+    return updated;
+  }
+
   return {
     async create(
       userId: string,
@@ -189,21 +210,47 @@ export function createHabitCommandService(
     },
 
     async activate(userId: string, id: string) {
-      const current = await repository.findOwned(userId, id);
-      if (!current) throw notFound();
-      if (current.isActive) throw conflict('Habit is already active.');
-      const updated = await repository.setActive(userId, id, false, true);
-      if (!updated) throw conflict('Habit state changed before activation.');
-      return updated;
+      return transition(
+        userId,
+        id,
+        false,
+        true,
+        'Habit is already active.',
+        'Habit state changed before activation.',
+      );
     },
 
     async deactivate(userId: string, id: string) {
-      const current = await repository.findOwned(userId, id);
-      if (!current) throw notFound();
-      if (!current.isActive) throw conflict('Habit is already inactive.');
-      const updated = await repository.setActive(userId, id, true, false);
-      if (!updated) throw conflict('Habit state changed before deactivation.');
-      return updated;
+      return transition(
+        userId,
+        id,
+        true,
+        false,
+        'Habit is already inactive.',
+        'Habit state changed before deactivation.',
+      );
+    },
+
+    async archive(userId: string, id: string) {
+      return transition(
+        userId,
+        id,
+        true,
+        false,
+        'Habit is already archived.',
+        'Habit state changed before archival.',
+      );
+    },
+
+    async restore(userId: string, id: string) {
+      return transition(
+        userId,
+        id,
+        false,
+        true,
+        'Habit is already active.',
+        'Habit state changed before restoration.',
+      );
     },
 
     async checkIn(
@@ -214,7 +261,7 @@ export function createHabitCommandService(
       const current = await repository.findOwned(context.userId, id);
       if (!current) throw notFound();
       if (!current.isActive) {
-        throw conflict('Inactive habits cannot be checked in.');
+        throw conflict('Archived habits cannot be checked in.');
       }
 
       const storedTimezone = await preferenceRepository.findTimezone(

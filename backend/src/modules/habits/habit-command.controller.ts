@@ -49,6 +49,16 @@ export function createHabitCommandController(service: HabitCommandService) {
       );
     },
 
+    archive: async (request: FastifyRequest<{ Params: HabitParams }>) => {
+      const userId = await requireUserId(request);
+      return successResponse(await service.archive(userId, request.params.id));
+    },
+
+    restore: async (request: FastifyRequest<{ Params: HabitParams }>) => {
+      const userId = await requireUserId(request);
+      return successResponse(await service.restore(userId, request.params.id));
+    },
+
     checkIn: async (
       request: FastifyRequest<{
         Body: HabitCheckInBody;

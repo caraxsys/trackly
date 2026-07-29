@@ -85,7 +85,7 @@ export function HabitCheckInControl({
         kind: 'error',
         message:
           error instanceof ApiError && error.status === 409
-            ? 'This habit is inactive or not scheduled for this date.'
+            ? 'This habit is archived or not scheduled for this date.'
             : 'Progress could not be updated. Please try again.',
       });
     } finally {
@@ -95,7 +95,7 @@ export function HabitCheckInControl({
 
   if (!canCheckIn) {
     const reason = !isActive
-      ? 'This habit is inactive.'
+      ? 'This habit is archived.'
       : !isScheduled
         ? 'This habit is not scheduled for this date.'
         : 'This habit is no longer available.';

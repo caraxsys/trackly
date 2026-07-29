@@ -22,7 +22,7 @@ export function HabitControls({
   return (
     <section aria-label="Habit collection controls" className="space-y-4">
       <nav aria-label="Habit views" className="flex gap-1" role="tablist">
-        {(['today', 'all', 'inactive'] as const).map((view) => (
+        {(['today', 'all', 'archived'] as const).map((view) => (
           <Link
             aria-selected={query.view === view}
             className={
