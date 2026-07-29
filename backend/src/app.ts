@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 
-import { environment } from './config/environment.js';
+import { loggerOptions } from './config/logger.js';
 import { verifyDatabaseConnection } from './db/index.js';
 import { corsPlugin } from './plugins/cors.js';
 import { authPlugin } from './plugins/auth.js';
@@ -20,37 +20,6 @@ import { routes } from './routes/index.js';
 interface BuildAppOptions {
   connectionCheck?: DatabaseConnectionCheck;
   logger?: boolean;
-}
-
-function loggerOptions() {
-  const baseOptions = {
-    level: environment.LOG_LEVEL,
-    redact: {
-      paths: [
-        'req.headers.authorization',
-        'req.headers.cookie',
-        'res.headers.set-cookie',
-        '*.password',
-        '*.token',
-        '*.secret',
-      ],
-      censor: '[REDACTED]',
-    },
-  };
-
-  return environment.NODE_ENV === 'development'
-    ? {
-        ...baseOptions,
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            singleLine: true,
-            translateTime: 'SYS:standard',
-          },
-        },
-      }
-    : baseOptions;
 }
 
 export async function buildApp(options: BuildAppOptions = {}) {
