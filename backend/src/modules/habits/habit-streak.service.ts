@@ -1,9 +1,6 @@
 import { AppError } from '../../errors/app-error.js';
 import { ErrorCode } from '../../errors/error-codes.js';
-import {
-  addCalendarDays,
-  getIsoWeekday,
-} from '../../lib/date/calendar-date.js';
+import { addCalendarDays } from '../../lib/date/calendar-date.js';
 import {
   getLocalCalendarDate,
   resolveTimezone,
@@ -11,6 +8,7 @@ import {
 import type { PreferenceRepository } from '../preferences/preference.repository.js';
 import type { HabitStreakQueryRepository } from './habit-streak.repository.js';
 import type { HabitStreak, HabitStreakRecord } from './habit-streak.types.js';
+import { isHabitScheduledOnDate } from './habit-schedule.js';
 
 interface Dependencies {
   habitStreakRepository: HabitStreakQueryRepository;
@@ -21,13 +19,6 @@ interface StreakContext {
   now?: Date;
   onTimezoneFallback?: () => void;
   userId: string;
-}
-
-function isScheduled(record: HabitStreakRecord, date: string) {
-  return (
-    record.frequencyType === 'daily' ||
-    record.weekdays.includes(getIsoWeekday(date))
-  );
 }
 
 export function calculateHabitStreak(
@@ -50,7 +41,7 @@ export function calculateHabitStreak(
       date <= lastEligibleDate;
       date = addCalendarDays(date, 1)
     ) {
-      if (!isScheduled(record, date)) continue;
+      if (!isHabitScheduledOnDate(record, date)) continue;
 
       if ((completedByDate.get(date) ?? 0) >= record.targetCount) {
         currentSequence += 1;

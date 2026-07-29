@@ -1,6 +1,5 @@
 import { AppError } from '../../errors/app-error.js';
 import { ErrorCode } from '../../errors/error-codes.js';
-import { getIsoWeekday } from '../../lib/date/calendar-date.js';
 import {
   getLocalCalendarDate,
   resolveTimezone,
@@ -15,6 +14,7 @@ import type {
   HabitFrequency,
   UpdateHabitInput,
 } from './habit.types.js';
+import { isHabitScheduledOnDate } from './habit-schedule.js';
 
 interface CheckInContext {
   now?: Date;
@@ -273,13 +273,12 @@ export function createHabitCommandService(
       }
       const date =
         input.date ?? getLocalCalendarDate(context.now ?? new Date(), timezone);
-      const isInDateRange =
-        date >= current.startDate &&
-        (current.endDate === null || date <= current.endDate);
-      const isScheduledWeekday =
-        current.frequencyType === 'daily' ||
-        current.weekdays.map(Number).includes(getIsoWeekday(date));
-      if (!isInDateRange || !isScheduledWeekday) {
+      if (
+        !isHabitScheduledOnDate(
+          { ...current, weekdays: current.weekdays.map(Number) },
+          date,
+        )
+      ) {
         throw conflict('Habit is not scheduled for the requested date.');
       }
       if (

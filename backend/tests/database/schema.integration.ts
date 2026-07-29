@@ -21,6 +21,8 @@ import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
 import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
 import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
+import { createReminderSchedulingRepository } from '../../src/modules/reminders/reminder-scheduling.repository.js';
+import { createReminderEligibilityService } from '../../src/modules/reminders/reminder-scheduling.service.js';
 import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
 import { createTodayService } from '../../src/modules/today/today.service.js';
 import {
@@ -98,6 +100,12 @@ function reminderService() {
   return createReminderService(
     createReminderRepository(database),
     createPreferenceRepository(database),
+  );
+}
+
+function reminderEligibilityService() {
+  return createReminderEligibilityService(
+    createReminderSchedulingRepository(database),
   );
 }
 
@@ -2181,5 +2189,117 @@ describe('core database domain schema', () => {
         ),
       ),
     ).toBe(1);
+  });
+
+  it('queries eligible Reminders across local timezones without duplicate schedule joins', async () => {
+    const jakartaUser = await createTestUser();
+    const londonUser = await createTestUser();
+    const utcFallbackUser = await createTestUser();
+    const jakartaHabit = await insertHabit(jakartaUser);
+    const londonHabit = await insertHabit(londonUser);
+    const utcHabit = await insertHabit(utcFallbackUser);
+    await database.insert(userPreferences).values([
+      { userId: jakartaUser, timezone: 'Asia/Jakarta' },
+      { userId: londonUser, timezone: 'Europe/London' },
+      { userId: utcFallbackUser, timezone: 'Invalid/Legacy' },
+    ]);
+    await database
+      .update(habits)
+      .set({ frequencyType: 'weekly' })
+      .where(eq(habits.id, jakartaHabit));
+    await database.insert(habitSchedules).values([
+      { habitId: jakartaHabit, dayOfWeek: 3 },
+      { habitId: jakartaHabit, dayOfWeek: 5 },
+    ]);
+    const [jakartaReminder, londonReminder, utcReminder] = await database
+      .insert(reminders)
+      .values([
+        {
+          userId: jakartaUser,
+          habitId: jakartaHabit,
+          timeOfDay: '08:00',
+        },
+        {
+          userId: londonUser,
+          habitId: londonHabit,
+          timeOfDay: '02:00',
+        },
+        {
+          userId: utcFallbackUser,
+          habitId: utcHabit,
+          timeOfDay: '01:00',
+        },
+      ])
+      .returning({ id: reminders.id });
+    await database.insert(reminders).values([
+      {
+        userId: jakartaUser,
+        habitId: jakartaHabit,
+        timeOfDay: '09:00',
+        isEnabled: false,
+      },
+      {
+        userId: londonUser,
+        habitId: londonHabit,
+        timeOfDay: '03:00',
+        deletedAt: new Date(),
+      },
+    ]);
+
+    const instant = new Date('2026-07-29T01:00:00.000Z');
+    const initial = await reminderEligibilityService().listEligible(instant);
+    expect(initial.map(({ reminderId }) => reminderId)).toEqual([
+      utcReminder?.id,
+      londonReminder?.id,
+      jakartaReminder?.id,
+    ]);
+    expect(new Set(initial.map(({ reminderId }) => reminderId)).size).toBe(3);
+    expect(initial).toEqual([
+      expect.objectContaining({
+        userId: utcFallbackUser,
+        timezone: 'UTC',
+        localDate: '2026-07-29',
+        localTime: '01:00',
+      }),
+      expect.objectContaining({
+        userId: londonUser,
+        timezone: 'Europe/London',
+        localTime: '02:00',
+      }),
+      expect.objectContaining({
+        userId: jakartaUser,
+        timezone: 'Asia/Jakarta',
+        localTime: '08:00',
+      }),
+    ]);
+
+    await database
+      .update(habits)
+      .set({ isActive: false })
+      .where(eq(habits.id, jakartaHabit));
+    expect(
+      (await reminderEligibilityService().listEligible(instant)).some(
+        ({ habitId }) => habitId === jakartaHabit,
+      ),
+    ).toBe(false);
+    await database
+      .update(habits)
+      .set({ isActive: true })
+      .where(eq(habits.id, jakartaHabit));
+    expect(
+      (await reminderEligibilityService().listEligible(instant)).some(
+        ({ habitId }) => habitId === jakartaHabit,
+      ),
+    ).toBe(true);
+
+    const indexes = await database.execute<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'reminders'
+    `);
+    expect(indexes.map(({ indexname }) => indexname)).toContain(
+      'reminders_habit_id_enabled_idx',
+    );
   });
 });

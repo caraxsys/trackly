@@ -66,6 +66,13 @@ export function getLocalCalendarDate(instant: Date, timezone: string) {
     .padStart(2, '0')}-${parts.day.toString().padStart(2, '0')}`;
 }
 
+export function getLocalTime(instant: Date, timezone: string) {
+  const parts = zonedParts(instant, timezone);
+  return `${parts.hour.toString().padStart(2, '0')}:${parts.minute
+    .toString()
+    .padStart(2, '0')}`;
+}
+
 function localMidnightInstant(date: CalendarDate, timezone: string) {
   const desiredUtcValue = Date.UTC(date.year, date.month - 1, date.day);
   let candidate = desiredUtcValue;
