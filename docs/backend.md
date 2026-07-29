@@ -88,16 +88,69 @@ HTTP 400 response.
 
 ## Logging and request IDs
 
-Fastify and Pino emit readable logs in development and structured JSON in
-production. `LOG_LEVEL` controls verbosity. Fastify request completion logs
-include the request ID, method, URL, status code, and response time.
+Fastify and Pino emit readable single-line logs in development and structured
+JSON in test and production. `LOG_LEVEL` controls verbosity. Each completed
+request emits `event=http.request.completed` with:
+
+- `time` and numeric `level`;
+- `requestId`, `method`, and query-free `path`;
+- HTTP `status` and `durationMs`;
+- authenticated `userId` when a session was resolved.
 
 The backend accepts an `x-request-id` containing 1–128 safe ASCII identifier
 characters. Invalid or missing values are replaced with a UUID. Every response
-returns the effective ID in the `x-request-id` header.
+returns the effective ID in the `x-request-id` header. Send the same ID on
+related inbound/internal HTTP calls to preserve correlation. Database,
+repository, service, controller, error, and audit logs use the request logger
+and therefore retain that correlation ID.
 
 Authorization headers, cookies, set-cookie headers, passwords, tokens, and
-secrets are redacted. Request bodies are not logged by default.
+secrets are redacted. Request bodies and query strings are not logged by
+default. Internal error events use `event=http.request.error`, stable error
+codes, request context, and a server-only stack. Known database, auth, and VAPID
+secret values are removed from error messages and stacks before logging. Public
+error responses are unchanged.
+
+### Audit events
+
+Important state changes emit `event=audit.event`. The nested `audit` object has
+the stable shape:
+
+```json
+{
+  "actorId": "authenticated-user-id",
+  "action": "habit.update",
+  "resourceType": "habit",
+  "resourceId": "resource-id",
+  "timestamp": "2026-07-29T00:00:00.000Z",
+  "outcome": "success",
+  "requestId": "request-id"
+}
+```
+
+Failed events additionally include a stable `errorCode`. Unknown authentication
+actors are represented as `null`. Audit events cover registration, login,
+logout, account/profile changes, Habit writes and check-ins, Goal writes,
+Reminder writes, and preference updates. They record identifiers and outcomes,
+never request payloads, email addresses, credentials, cookies, tokens, push
+subscription material, or verification links.
+
+Audit logs are operational records, not a persisted domain model. They inherit
+the active Pino destination and retention policy; Trackly does not introduce an
+external logging service or database audit table.
+
+### Troubleshooting
+
+1. Start with the client-visible `x-request-id`.
+2. Find `http.request.completed` for status and latency.
+3. Inspect a matching `http.request.error` for sanitized internal context.
+4. Inspect matching `audit.event` entries to confirm attempted state changes and
+   outcomes.
+5. Use `/health` for process liveness and `/ready` for PostgreSQL readiness.
+
+Temporary diagnostics and Swagger retain the production restrictions defined in
+the security policy. Health responses do not expose configuration, credentials,
+dependency addresses, or stack traces.
 
 ## CORS
 

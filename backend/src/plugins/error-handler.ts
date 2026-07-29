@@ -1,7 +1,8 @@
-import type { FastifyError } from 'fastify';
+import type { FastifyError, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { ZodError } from 'zod';
 
+import { environment } from '../config/environment.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { errorResponse } from '../http/responses.js';
@@ -26,6 +27,32 @@ function fastifyValidationDetails(error: FastifyError) {
 
 function requestPath(url: string) {
   return url.split('?', 1)[0] ?? '/';
+}
+
+const sensitiveValues = [
+  environment.BETTER_AUTH_SECRET,
+  environment.DATABASE_URL,
+  environment.WEB_PUSH_VAPID_PRIVATE_KEY,
+].filter((value): value is string => Boolean(value));
+
+function redactText(value: string | undefined) {
+  if (!value) return value;
+  return sensitiveValues.reduce(
+    (result, secret) => result.replaceAll(secret, '[REDACTED]'),
+    value,
+  );
+}
+
+function internalError(error: Error) {
+  return {
+    name: error.name,
+    message: redactText(error.message),
+    stack: redactText(error.stack),
+  };
+}
+
+function errorLogContext(request: FastifyRequest) {
+  return { requestId: request.id };
 }
 
 export const errorHandlerPlugin = fastifyPlugin(
@@ -84,7 +111,18 @@ export const errorHandlerPlugin = fastifyPlugin(
       if (error instanceof AppError) {
         if (error.statusCode >= 500) {
           request.log.warn(
-            { err: error, errorCode: error.code },
+            {
+              event: 'http.request.error',
+              ...errorLogContext(request),
+              method: request.method,
+              path: requestPath(request.url),
+              status: error.statusCode,
+              errorCode: error.code,
+              error: internalError(error),
+              ...(request.authenticatedUserId
+                ? { userId: request.authenticatedUserId }
+                : {}),
+            },
             'Application request failed',
           );
         }
@@ -94,7 +132,21 @@ export const errorHandlerPlugin = fastifyPlugin(
           .send(errorResponse(error.code, error.message, error.details));
       }
 
-      request.log.error({ err: error }, 'Unexpected request error');
+      request.log.error(
+        {
+          event: 'http.request.error',
+          ...errorLogContext(request),
+          method: request.method,
+          path: requestPath(request.url),
+          status: 500,
+          errorCode: ErrorCode.InternalServerError,
+          error: internalError(error),
+          ...(request.authenticatedUserId
+            ? { userId: request.authenticatedUserId }
+            : {}),
+        },
+        'Unexpected request error',
+      );
       return reply
         .code(500)
         .send(

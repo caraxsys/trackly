@@ -50,6 +50,7 @@ export async function requireSession(request: FastifyRequest) {
     });
   }
 
+  request.authenticatedUserId = session.user.id;
   return session;
 }
 
