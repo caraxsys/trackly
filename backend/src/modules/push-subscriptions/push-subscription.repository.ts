@@ -19,6 +19,23 @@ const deliveryProjection = {
   auth: pushSubscriptions.auth,
 };
 
+function isUniqueViolation(error: unknown) {
+  let candidate: unknown = error;
+  const visited = new Set<unknown>();
+
+  while (
+    candidate &&
+    typeof candidate === 'object' &&
+    !visited.has(candidate)
+  ) {
+    visited.add(candidate);
+    if ('code' in candidate && candidate.code === '23505') return true;
+    candidate = 'cause' in candidate ? candidate.cause : undefined;
+  }
+
+  return false;
+}
+
 export function createPushSubscriptionRepository(database: Database) {
   return {
     async createOrReactivate(
@@ -30,8 +47,98 @@ export function createPushSubscriptionRepository(database: Database) {
         userAgent?: string;
       },
     ) {
-      return database.transaction(async (transaction) => {
-        const [active] = await transaction
+      try {
+        return await database.transaction(async (transaction) => {
+          const [active] = await transaction
+            .select({
+              id: pushSubscriptions.id,
+              userId: pushSubscriptions.userId,
+            })
+            .from(pushSubscriptions)
+            .where(
+              and(
+                eq(pushSubscriptions.endpoint, input.endpoint),
+                isNull(pushSubscriptions.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (active && active.userId !== userId) {
+            return { status: 'owned_by_another_user' as const };
+          }
+
+          const now = new Date();
+          if (active) {
+            const [updated] = await transaction
+              .update(pushSubscriptions)
+              .set({
+                p256dh: input.p256dh,
+                auth: input.auth,
+                userAgent: input.userAgent ?? null,
+                isEnabled: true,
+                failureCount: 0,
+                lastFailureAt: null,
+                updatedAt: now,
+              })
+              .where(
+                and(
+                  eq(pushSubscriptions.id, active.id),
+                  eq(pushSubscriptions.userId, userId),
+                ),
+              )
+              .returning(publicProjection);
+            if (!updated) throw new Error('Push subscription update failed.');
+            return { status: 'updated' as const, subscription: updated };
+          }
+
+          const [ownedDeleted] = await transaction
+            .select({ id: pushSubscriptions.id })
+            .from(pushSubscriptions)
+            .where(
+              and(
+                eq(pushSubscriptions.endpoint, input.endpoint),
+                eq(pushSubscriptions.userId, userId),
+              ),
+            )
+            .orderBy(desc(pushSubscriptions.updatedAt))
+            .limit(1);
+          if (ownedDeleted) {
+            const [reactivated] = await transaction
+              .update(pushSubscriptions)
+              .set({
+                p256dh: input.p256dh,
+                auth: input.auth,
+                userAgent: input.userAgent ?? null,
+                isEnabled: true,
+                deletedAt: null,
+                failureCount: 0,
+                lastFailureAt: null,
+                updatedAt: now,
+              })
+              .where(eq(pushSubscriptions.id, ownedDeleted.id))
+              .returning(publicProjection);
+            if (!reactivated) {
+              throw new Error('Push subscription reactivation failed.');
+            }
+            return { status: 'updated' as const, subscription: reactivated };
+          }
+
+          const [created] = await transaction
+            .insert(pushSubscriptions)
+            .values({
+              userId,
+              endpoint: input.endpoint,
+              p256dh: input.p256dh,
+              auth: input.auth,
+              userAgent: input.userAgent,
+            })
+            .returning(publicProjection);
+          if (!created) throw new Error('Push subscription insert failed.');
+          return { status: 'created' as const, subscription: created };
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+
+        const [winner] = await database
           .select({
             id: pushSubscriptions.id,
             userId: pushSubscriptions.userId,
@@ -44,79 +151,36 @@ export function createPushSubscriptionRepository(database: Database) {
             ),
           )
           .limit(1);
-        if (active && active.userId !== userId) {
+
+        if (!winner || winner.userId !== userId) {
           return { status: 'owned_by_another_user' as const };
         }
 
-        const now = new Date();
-        if (active) {
-          const [updated] = await transaction
-            .update(pushSubscriptions)
-            .set({
-              p256dh: input.p256dh,
-              auth: input.auth,
-              userAgent: input.userAgent ?? null,
-              isEnabled: true,
-              failureCount: 0,
-              lastFailureAt: null,
-              updatedAt: now,
-            })
-            .where(
-              and(
-                eq(pushSubscriptions.id, active.id),
-                eq(pushSubscriptions.userId, userId),
-              ),
-            )
-            .returning(publicProjection);
-          if (!updated) throw new Error('Push subscription update failed.');
-          return { status: 'updated' as const, subscription: updated };
-        }
-
-        const [ownedDeleted] = await transaction
-          .select({ id: pushSubscriptions.id })
-          .from(pushSubscriptions)
-          .where(
-            and(
-              eq(pushSubscriptions.endpoint, input.endpoint),
-              eq(pushSubscriptions.userId, userId),
-            ),
-          )
-          .orderBy(desc(pushSubscriptions.updatedAt))
-          .limit(1);
-        if (ownedDeleted) {
-          const [reactivated] = await transaction
-            .update(pushSubscriptions)
-            .set({
-              p256dh: input.p256dh,
-              auth: input.auth,
-              userAgent: input.userAgent ?? null,
-              isEnabled: true,
-              deletedAt: null,
-              failureCount: 0,
-              lastFailureAt: null,
-              updatedAt: now,
-            })
-            .where(eq(pushSubscriptions.id, ownedDeleted.id))
-            .returning(publicProjection);
-          if (!reactivated) {
-            throw new Error('Push subscription reactivation failed.');
-          }
-          return { status: 'updated' as const, subscription: reactivated };
-        }
-
-        const [created] = await transaction
-          .insert(pushSubscriptions)
-          .values({
-            userId,
-            endpoint: input.endpoint,
+        const [updated] = await database
+          .update(pushSubscriptions)
+          .set({
             p256dh: input.p256dh,
             auth: input.auth,
-            userAgent: input.userAgent,
+            userAgent: input.userAgent ?? null,
+            isEnabled: true,
+            failureCount: 0,
+            lastFailureAt: null,
+            updatedAt: new Date(),
           })
+          .where(
+            and(
+              eq(pushSubscriptions.id, winner.id),
+              eq(pushSubscriptions.userId, userId),
+              isNull(pushSubscriptions.deletedAt),
+            ),
+          )
           .returning(publicProjection);
-        if (!created) throw new Error('Push subscription insert failed.');
-        return { status: 'created' as const, subscription: created };
-      });
+
+        if (!updated) {
+          return { status: 'owned_by_another_user' as const };
+        }
+        return { status: 'updated' as const, subscription: updated };
+      }
     },
 
     listActiveByUser(userId: string) {

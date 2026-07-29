@@ -1,10 +1,8 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
-
 import { getInternalApiUrl } from '@/lib/server-environment';
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 import type { TodayResponseData } from '@/types/today';
+import { requestServerApi, ServerApiError } from './server-api';
 
 export class TodayServerError extends Error {
   constructor(
@@ -17,29 +15,18 @@ export class TodayServerError extends Error {
 }
 
 export async function getServerToday(date?: string) {
-  const cookieStore = await cookies();
   const url = new URL('/api/v1/today', getInternalApiUrl());
 
   if (date) {
     url.searchParams.set('date', date);
   }
 
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      accept: 'application/json',
-      cookie: cookieStore.toString(),
-    },
-  });
-  const payload = (await response.json()) as
-    ApiSuccessResponse<TodayResponseData> | ApiErrorResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new TodayServerError(
-      response.status,
-      payload.success ? 'UNKNOWN_ERROR' : payload.error.code,
-    );
+  try {
+    return await requestServerApi<TodayResponseData>(url);
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw new TodayServerError(error.status, error.code);
+    }
+    throw error;
   }
-
-  return payload.data;
 }
