@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { runAuditedOperation } from '../../audit/audit-logger.js';
 import { requireUserId } from '../../auth/session.js';
 import { successResponse } from '../../http/responses.js';
 import type { HabitCommandService } from './habit-command.service.js';
@@ -17,7 +18,16 @@ export function createHabitCommandController(service: HabitCommandService) {
       reply: FastifyReply,
     ) => {
       const userId = await requireUserId(request);
-      const data = await service.create(userId, request.body);
+      const data = await runAuditedOperation(
+        request,
+        {
+          actorId: userId,
+          action: 'habit.create',
+          resourceType: 'habit',
+        },
+        () => service.create(userId, request.body),
+        (result) => result.id,
+      );
       return reply.status(201).send(successResponse(data));
     },
 
@@ -26,37 +36,97 @@ export function createHabitCommandController(service: HabitCommandService) {
     ) => {
       const userId = await requireUserId(request);
       return successResponse(
-        await service.update(userId, request.params.id, request.body),
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.update',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.update(userId, request.params.id, request.body),
+        ),
       );
     },
 
     softDelete: async (request: FastifyRequest<{ Params: HabitParams }>) => {
       const userId = await requireUserId(request);
       return successResponse(
-        await service.softDelete(userId, request.params.id),
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.delete',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.softDelete(userId, request.params.id),
+        ),
       );
     },
 
     activate: async (request: FastifyRequest<{ Params: HabitParams }>) => {
       const userId = await requireUserId(request);
-      return successResponse(await service.activate(userId, request.params.id));
+      return successResponse(
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.activate',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.activate(userId, request.params.id),
+        ),
+      );
     },
 
     deactivate: async (request: FastifyRequest<{ Params: HabitParams }>) => {
       const userId = await requireUserId(request);
       return successResponse(
-        await service.deactivate(userId, request.params.id),
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.deactivate',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.deactivate(userId, request.params.id),
+        ),
       );
     },
 
     archive: async (request: FastifyRequest<{ Params: HabitParams }>) => {
       const userId = await requireUserId(request);
-      return successResponse(await service.archive(userId, request.params.id));
+      return successResponse(
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.archive',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.archive(userId, request.params.id),
+        ),
+      );
     },
 
     restore: async (request: FastifyRequest<{ Params: HabitParams }>) => {
       const userId = await requireUserId(request);
-      return successResponse(await service.restore(userId, request.params.id));
+      return successResponse(
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.restore',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.restore(userId, request.params.id),
+        ),
+      );
     },
 
     checkIn: async (
@@ -67,7 +137,16 @@ export function createHabitCommandController(service: HabitCommandService) {
     ) => {
       const userId = await requireUserId(request);
       return successResponse(
-        await service.checkIn({ userId }, request.params.id, request.body),
+        await runAuditedOperation(
+          request,
+          {
+            actorId: userId,
+            action: 'habit.check_in',
+            resourceType: 'habit',
+            resourceId: request.params.id,
+          },
+          () => service.checkIn({ userId }, request.params.id, request.body),
+        ),
       );
     },
   };

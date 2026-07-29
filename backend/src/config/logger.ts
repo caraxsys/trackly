@@ -1,4 +1,4 @@
-import pino, { type LoggerOptions } from 'pino';
+import pino, { type DestinationStream, type LoggerOptions } from 'pino';
 
 import { environment } from './environment.js';
 
@@ -40,8 +40,8 @@ export function loggerOptions(): LoggerOptions {
     : baseOptions;
 }
 
-export function createLogger() {
-  return pino(loggerOptions());
+export function createLogger(destination?: DestinationStream) {
+  return pino(loggerOptions(), destination);
 }
 
 export type AppLogger = ReturnType<typeof createLogger>;

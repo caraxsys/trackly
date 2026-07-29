@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyBaseLogger, LogController } from 'fastify';
 
 import { environment } from './config/environment.js';
 import { loggerOptions } from './config/logger.js';
@@ -21,23 +21,28 @@ import { routes } from './routes/index.js';
 
 interface BuildAppOptions {
   connectionCheck?: DatabaseConnectionCheck;
-  logger?: boolean;
+  logger?: boolean | FastifyBaseLogger;
+}
+
+class TracklyLogController extends LogController {
+  constructor() {
+    super({ disableRequestLogging: true });
+  }
 }
 
 export async function buildApp(options: BuildAppOptions = {}) {
   const connectionCheck = options.connectionCheck ?? verifyDatabaseConnection;
+  const commonOptions = {
+    genReqId: resolveRequestId,
+    logController: new TracklyLogController(),
+    trustProxy: environment.TRUST_PROXY,
+  };
   const app =
     options.logger === false
-      ? Fastify({
-          logger: false,
-          genReqId: resolveRequestId,
-          trustProxy: environment.TRUST_PROXY,
-        })
-      : Fastify({
-          logger: loggerOptions(),
-          genReqId: resolveRequestId,
-          trustProxy: environment.TRUST_PROXY,
-        });
+      ? Fastify({ ...commonOptions, logger: false })
+      : options.logger && typeof options.logger !== 'boolean'
+        ? Fastify({ ...commonOptions, loggerInstance: options.logger })
+        : Fastify({ ...commonOptions, logger: loggerOptions() });
 
   await app.register(requestContextPlugin);
   await app.register(errorHandlerPlugin);
