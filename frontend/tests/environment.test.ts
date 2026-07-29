@@ -13,4 +13,13 @@ describe('public environment validation', () => {
       /Invalid public frontend environment:[\s\S]*NEXT_PUBLIC_API_URL must be a valid absolute URL/,
     );
   });
+
+  it('allows missing optional Web Push configuration', () => {
+    expect(
+      parsePublicEnvironment({
+        NEXT_PUBLIC_API_URL: 'http://localhost:4000',
+        NEXT_PUBLIC_AUTH_URL: 'http://localhost:4000',
+      }).NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY,
+    ).toBeUndefined();
+  });
 });

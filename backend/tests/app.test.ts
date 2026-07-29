@@ -185,6 +185,38 @@ describe('backend foundation', () => {
     ).toBeDefined();
   });
 
+  it('validates, protects, and documents push subscription routes', async () => {
+    const [unauthenticated, invalid] = await Promise.all([
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/push-subscriptions',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/push-subscriptions',
+        payload: {
+          endpoint: 'http://insecure.example.test/subscription',
+          keys: { p256dh: 'short', auth: 'short' },
+        },
+      }),
+    ]);
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json()).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+
+    const route = app.swagger().paths?.['/api/v1/push-subscriptions'];
+    expect(route?.get).toBeDefined();
+    expect(route?.post).toBeDefined();
+    expect(route?.delete).toBeDefined();
+  });
+
   it('validates habit streak identifiers and requires authentication', async () => {
     const [invalid, unauthenticated] = await Promise.all([
       app.inject({

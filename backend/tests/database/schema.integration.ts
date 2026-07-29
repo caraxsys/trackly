@@ -18,7 +18,10 @@ import { createHabitCommandService } from '../../src/modules/habits/habit-comman
 import { createHabitStreakQueryRepository } from '../../src/modules/habits/habit-streak.repository.js';
 import { createHabitStreakQueryService } from '../../src/modules/habits/habit-streak.service.js';
 import { createHabitService } from '../../src/modules/habits/habit.service.js';
+import { createNotificationDeliveryRepository } from '../../src/modules/notifications/notification-delivery.repository.js';
+import { mapEligibleReminderToOccurrence } from '../../src/modules/notifications/notification-occurrence.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
+import { createPushSubscriptionRepository } from '../../src/modules/push-subscriptions/push-subscription.repository.js';
 import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
 import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
 import { createReminderSchedulingRepository } from '../../src/modules/reminders/reminder-scheduling.repository.js';
@@ -32,6 +35,8 @@ import {
   habitCheckIns,
   habitSchedules,
   habits,
+  notificationDeliveries,
+  pushSubscriptions,
   reminders,
   tasks,
   user,
@@ -215,12 +220,14 @@ describe('core database domain schema', () => {
           'user',
           'session',
           'account',
-          'verification'
-          ,'reminders'
+          'verification',
+          'reminders',
+          'notification_deliveries',
+          'push_subscriptions'
         )
     `);
 
-    expect(result[0]?.table_count).toBe(13);
+    expect(result[0]?.table_count).toBe(15);
   });
 
   it('supports registration, login, persistent sessions, and logout', async () => {
@@ -2300,6 +2307,246 @@ describe('core database domain schema', () => {
     `);
     expect(indexes.map(({ indexname }) => indexname)).toContain(
       'reminders_habit_id_enabled_idx',
+    );
+  });
+
+  it('durably claims Notification occurrences and enforces lifecycle transitions', async () => {
+    const userId = await createTestUser();
+    const habitId = await insertHabit(userId);
+    const [reminder] = await database
+      .insert(reminders)
+      .values({ userId, habitId, timeOfDay: '08:00' })
+      .returning({ id: reminders.id });
+    if (!reminder) throw new Error('Reminder fixture was not created.');
+    const repository = createNotificationDeliveryRepository(database);
+    const occurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-10',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+
+    const claims = await Promise.all([
+      repository.claimOccurrence(occurrence, 'noop'),
+      repository.claimOccurrence(occurrence, 'noop'),
+    ]);
+    expect(claims.filter(({ claimed }) => claimed)).toHaveLength(1);
+    expect(claims.filter(({ claimed }) => !claimed)).toHaveLength(1);
+    expect(
+      await database.$count(
+        notificationDeliveries,
+        eq(notificationDeliveries.occurrenceKey, occurrence.occurrenceKey),
+      ),
+    ).toBe(1);
+    const claimed = claims.find(({ claimed }) => claimed);
+    if (!claimed?.claimed) throw new Error('Occurrence was not claimed.');
+    expect(claimed.delivery).toMatchObject({
+      status: 'pending',
+      provider: 'noop',
+      attemptCount: 0,
+      scheduledLocalDate: '2026-08-10',
+      scheduledLocalTime: '08:00:00',
+    });
+    expect(await repository.markProcessing(claimed.delivery.id)).toMatchObject({
+      status: 'processing',
+      attemptCount: 1,
+    });
+    expect((await repository.markDelivered(claimed.delivery.id))?.status).toBe(
+      'delivered',
+    );
+    await expect(
+      repository.markFailed(claimed.delivery.id),
+    ).resolves.toBeNull();
+    await expect(
+      repository.markProcessing(claimed.delivery.id),
+    ).resolves.toBeNull();
+
+    const failedOccurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-11',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+    const failedClaim = await repository.claimOccurrence(
+      failedOccurrence,
+      'noop',
+    );
+    if (!failedClaim.claimed)
+      throw new Error('Failure fixture was not claimed.');
+    await repository.markProcessing(failedClaim.delivery.id);
+    expect((await repository.markFailed(failedClaim.delivery.id))?.status).toBe(
+      'failed',
+    );
+
+    const skippedOccurrence = mapEligibleReminderToOccurrence({
+      reminderId: reminder.id,
+      habitId,
+      userId,
+      timezone: 'Asia/Jakarta',
+      localDate: '2026-08-12',
+      localTime: '08:00',
+      timeOfDay: '08:00',
+    });
+    const skippedClaim = await repository.claimOccurrence(
+      skippedOccurrence,
+      'noop',
+    );
+    if (!skippedClaim.claimed) throw new Error('Skip fixture was not claimed.');
+    await repository.markProcessing(skippedClaim.delivery.id);
+    expect(
+      (await repository.markSkipped(skippedClaim.delivery.id))?.status,
+    ).toBe('skipped');
+    await expect(
+      repository.markProcessing(skippedClaim.delivery.id),
+    ).resolves.toBeNull();
+
+    await expectPostgresError(
+      database.insert(notificationDeliveries).values({
+        ...occurrence,
+        provider: 'noop',
+      }),
+      '23505',
+    );
+    await expectPostgresError(
+      database.insert(notificationDeliveries).values({
+        ...occurrence,
+        occurrenceKey: 'missing-reminder',
+        reminderId: randomUUID(),
+        provider: 'noop',
+      }),
+      '23503',
+    );
+
+    const indexes = await database.execute<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'notification_deliveries'
+    `);
+    expect(indexes.map(({ indexname }) => indexname)).toEqual(
+      expect.arrayContaining([
+        'notification_deliveries_occurrence_key_uidx',
+        'notification_deliveries_reminder_id_idx',
+        'notification_deliveries_user_id_idx',
+        'notification_deliveries_status_idx',
+      ]),
+    );
+  });
+
+  it('persists, protects, updates, and soft-deletes push subscriptions', async () => {
+    const ownerId = `push-owner-${randomUUID()}`;
+    const otherId = `push-other-${randomUUID()}`;
+    await database.insert(user).values([
+      {
+        id: ownerId,
+        name: 'Push Owner',
+        email: `${ownerId}@example.com`,
+        emailVerified: true,
+      },
+      {
+        id: otherId,
+        name: 'Push Other',
+        email: `${otherId}@example.com`,
+        emailVerified: true,
+      },
+    ]);
+    const repository = createPushSubscriptionRepository(database);
+    const endpoint = 'https://push.example.test/subscription/owner';
+    const first = await repository.createOrReactivate(ownerId, {
+      endpoint,
+      p256dh: 'p256dh-key-material',
+      auth: 'auth-key-material',
+      userAgent: 'Test Browser',
+    });
+    expect(first.status).toBe('created');
+    if (first.status !== 'created')
+      throw new Error('Subscription not created.');
+
+    const [stored] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(stored).toMatchObject({
+      userId: ownerId,
+      endpoint,
+      isEnabled: true,
+      failureCount: 0,
+      deletedAt: null,
+    });
+    expect(
+      await repository.createOrReactivate(otherId, {
+        endpoint,
+        p256dh: 'different-p256dh-key',
+        auth: 'different-auth-key',
+      }),
+    ).toEqual({ status: 'owned_by_another_user' });
+
+    const second = await repository.createOrReactivate(ownerId, {
+      endpoint: 'https://push.example.test/subscription/second',
+      p256dh: 'second-p256dh-key',
+      auth: 'second-auth-key',
+    });
+    expect(second.status).toBe('created');
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
+
+    await repository.recordFailure(first.subscription.id);
+    const [failed] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(failed?.failureCount).toBe(1);
+    expect(failed?.lastFailureAt).toBeInstanceOf(Date);
+
+    await repository.recordSuccess(first.subscription.id);
+    const [successful] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(successful?.failureCount).toBe(0);
+    expect(successful?.lastSuccessAt).toBeInstanceOf(Date);
+
+    await repository.disableOwned(ownerId, endpoint);
+    await expect(
+      repository.disableOwned(ownerId, endpoint),
+    ).resolves.toBeNull();
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(1);
+    const reactivated = await repository.createOrReactivate(ownerId, {
+      endpoint,
+      p256dh: 'reactivated-p256dh-key',
+      auth: 'reactivated-auth-key',
+    });
+    expect(reactivated.status).toBe('updated');
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
+
+    await expectPostgresError(
+      database.insert(pushSubscriptions).values({
+        userId: otherId,
+        endpoint,
+        p256dh: 'conflicting-p256dh',
+        auth: 'conflicting-auth',
+      }),
+      '23505',
+    );
+
+    const indexes = await database.execute<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'push_subscriptions'
+    `);
+    expect(indexes.map(({ indexname }) => indexname)).toEqual(
+      expect.arrayContaining([
+        'push_subscriptions_active_endpoint_uidx',
+        'push_subscriptions_user_id_idx',
+        'push_subscriptions_enabled_active_idx',
+        'push_subscriptions_endpoint_idx',
+      ]),
     );
   });
 });

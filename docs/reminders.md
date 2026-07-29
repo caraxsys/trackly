@@ -165,7 +165,289 @@ Structured events are:
 - `reminder_scheduler_stopped`
 - `reminder_scheduler_startup_failed`
 
-The scheduler currently determines which Reminders are eligible. It does not
-send notifications. It provides no exactly-once guarantee, delivery retry,
-history, or repeated-hour deduplication; those responsibilities remain in a
-future delivery milestone.
+The scheduler determines which Reminders are eligible and passes those
+occurrences to the provider-neutral delivery pipeline. It does not contain
+provider implementation details. Durable occurrence claims prevent duplicate
+dispatch, but there is no automatic retry, distributed lock, or catch-up scan.
+
+## Notification delivery foundation
+
+Eligible Reminder occurrences now enter a provider-neutral delivery pipeline:
+
+```text
+Scheduler runner
+  → eligibility service
+  → delivery coordinator
+  → durable occurrence claim
+  → dispatcher
+  → explicitly selected provider
+      → Noop provider, or
+      → Web Push provider
+  → terminal delivery status
+```
+
+The delivery layer does not own eligibility, Habit schedules, timezone
+resolution, or scheduler timing. It receives the canonical eligible occurrence
+produced by the scheduling domain.
+
+### Occurrence identity and deduplication
+
+An occurrence contains the Reminder ID, canonical timezone, local calendar
+date, and canonical local `HH:mm`. Its versioned key is encoded as an
+unambiguous JSON tuple:
+
+```text
+[1, reminderId, timezone, scheduledLocalDate, scheduledLocalTime]
+```
+
+The key contains no process ID, server timestamp, random value, provider, or
+attempt number. PostgreSQL enforces a unique occurrence key. Atomic
+`ON CONFLICT DO NOTHING` claims ensure that concurrent processes resolve the
+same occurrence record and only the successful claimant can invoke a provider.
+Process restarts and repeated ticks therefore do not create another record or
+dispatch an already claimed occurrence.
+
+The current schema models one delivery record per logical occurrence,
+independent of provider. Multi-channel fan-out may later evolve toward a
+separate occurrence record and channel-attempt records.
+
+### Delivery lifecycle
+
+Statuses are:
+
+- `pending`: the occurrence is durably claimed;
+- `processing`: provider invocation is being attempted;
+- `delivered`: the provider contract returned success;
+- `failed`: provider or orchestration execution failed;
+- `skipped`: a claimed occurrence was intentionally not dispatched.
+
+Allowed automatic transitions are `pending → processing`,
+`processing → delivered`, `processing → failed`, and `processing → skipped`.
+Conditional database updates prevent terminal `delivered` or `skipped` records
+from returning to processing or being overwritten. Failed deliveries are not
+automatically retried.
+
+`attempt_count` starts at zero and increments when a pending record enters
+processing. For the Noop provider, `delivered` means only that the provider
+contract completed successfully.
+
+### Provider and dispatcher boundary
+
+Providers receive only delivery and occurrence identifiers, local scheduling
+values, timezone, and minimal title/body content. The dispatcher uses an
+explicit provider registry and never falls back for unsupported names.
+
+The dispatcher registers `noop` and `web_push` explicitly and never falls back
+between them. `NoopNotificationProvider` performs no network or external I/O,
+returns deterministic success, and logs no content payload. A `delivered` Noop
+record only confirms that the provider contract completed successfully.
+
+## Web Push backend
+
+The Web Push provider implements the existing provider contract using standard
+browser Web Push and VAPID:
+
+```text
+Delivery coordinator
+  → provider dispatcher
+  → WebPushNotificationProvider
+  → active push subscriptions
+  → browser push services
+```
+
+The scheduler, eligibility engine, and coordinator do not import Web Push
+library types or subscription storage. When complete VAPID configuration is
+available, scheduler composition registers both providers and explicitly
+selects `web_push`. Without Web Push configuration, non-production scheduler
+runs retain the Noop provider. Production environment validation requires all
+Web Push configuration.
+
+### VAPID configuration
+
+Generate a VAPID key pair with the installed Web Push package:
+
+```bash
+pnpm --filter @trackly/backend exec web-push generate-vapid-keys
+```
+
+Configure:
+
+```dotenv
+WEB_PUSH_VAPID_PUBLIC_KEY=
+WEB_PUSH_VAPID_PRIVATE_KEY=
+WEB_PUSH_SUBJECT=mailto:admin@example.com
+```
+
+`WEB_PUSH_SUBJECT` accepts a `mailto:` contact or an HTTPS URL. Never commit the
+private key or expose it through an API or log. Invalid key material fails Web
+Push provider initialization with a public configuration error.
+
+### Subscription API and lifecycle
+
+All endpoints require the authenticated Better Auth session and are under
+`/api/v1`:
+
+- `POST /push-subscriptions` creates, updates, or reactivates an endpoint for
+  the current user.
+- `GET /push-subscriptions` lists only the current user's active subscriptions
+  with a truncated endpoint identifier and safe metadata.
+- `DELETE /push-subscriptions` idempotently soft-deletes the current user's
+  matching endpoint.
+
+The POST body contains an HTTPS `endpoint`, `keys.p256dh`, `keys.auth`, and an
+optional bounded `userAgent`. User IDs are never accepted from clients. An
+active endpoint owned by another user is not reassigned. Multiple endpoints are
+supported per user, while a partial unique index prevents two active records
+for the same endpoint.
+
+Subscriptions track enabled state, last success and failure instants, and a
+non-negative consecutive failure count. Successful delivery resets the failure
+count. Transient failures increment it without automatic retry. HTTP 404 and
+410 responses permanently invalidate and soft-delete the affected
+subscription, preventing future attempts.
+
+API responses never expose subscription key material or full endpoints.
+Provider logs omit endpoints, subscription keys, payload bodies, upstream error
+messages, and VAPID secrets.
+
+### Multi-subscription delivery semantics
+
+Each active subscription is attempted independently:
+
+- `delivered`: at least one push service accepted the notification;
+- `failed`: active subscriptions existed, but all attempts failed;
+- `skipped`: no active subscriptions existed.
+
+One failed endpoint does not block the remaining endpoints or later Reminder
+occurrences. Duplicate occurrence claims never invoke Web Push again.
+
+The JSON payload contains only a generic Trackly title/body and the notification
+type, Habit ID, Reminder ID, scheduled local date, and scheduled local time. It
+contains no email address, name, authentication data, subscription secrets, or
+other sensitive user information.
+
+### Scheduler aggregation and failures
+
+The scheduler processes eligible occurrences sequentially. Aggregate tick
+results distinguish eligible, newly claimed, delivered, failed, duplicate, and
+skipped counts. A claim or provider failure for one occurrence does not prevent
+remaining occurrences from being processed. Eligibility-query failure still
+fails the entire tick.
+
+No automatic retry, retry backoff, delivery queue, dead-letter queue,
+distributed lock, provider message ID, `delivered_at`, `read_at`, click
+tracking, notification history, or per-channel preference system exists.
+
+## Frontend Web Push
+
+The Preferences page contains a device-specific Notifications section:
+
+```text
+NotificationSettings
+  → Web Push client service
+  → service-worker registration
+  → browser PushManager
+  → authenticated push-subscription API
+```
+
+Browser APIs are isolated in the Web Push client service. Page components
+render state and initiate explicit actions; they do not directly register
+workers, request permission, or serialize subscriptions.
+
+### Frontend configuration
+
+Only the public VAPID key is exposed to browser code:
+
+```dotenv
+NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY=
+```
+
+It must correspond to the backend VAPID public key. The private key remains
+backend-only. Missing development configuration renders “Configuration
+unavailable” rather than throwing or requesting permission.
+
+Web Push requires a secure context. Production must use HTTPS; browsers
+normally treat `localhost` as secure for local development.
+
+### Permission lifecycle
+
+Trackly never requests notification permission on page load:
+
+- `default`: the Enable action requests permission after the user clicks it;
+- `granted`: Trackly can create or synchronize this device's subscription;
+- `denied`: Trackly shows blocked guidance and does not repeatedly request
+  permission.
+
+Browser permission cannot be reset programmatically. A user who denied
+permission must update the browser or site permission settings manually and
+then refresh Trackly's displayed status.
+
+### Enable, disable, and reconciliation
+
+Enabling performs these steps:
+
+1. Validate browser support, secure context, and public-key configuration.
+2. Register `/sw.js` with root scope.
+3. Request permission only when its current state is `default`.
+4. Reuse the existing PushManager subscription or create one with the
+   configured application-server key.
+5. Serialize the browser-provided endpoint and keys with
+   `PushSubscription.toJSON()`.
+6. Synchronize the subscription through the authenticated Axios client.
+7. Show enabled only after backend synchronization succeeds.
+
+Repeated actions are guarded against concurrent execution. Existing
+subscriptions are synchronized instead of recreated.
+
+Disabling first sends the endpoint to the authenticated DELETE API and then
+unsubscribes locally. Backend deletion is idempotent. If backend deletion
+succeeds but browser cleanup fails, the UI reports a safe partial-cleanup
+message. An absent local subscription is already disabled.
+
+When the settings UI opens, granted permission plus an existing local
+subscription triggers a lightweight backend synchronization. Trackly does not
+request permission or create a subscription during reconciliation. The status
+describes only the current browser/device; subscriptions on other devices are
+not displayed or deleted.
+
+Expired sessions follow the existing frontend behavior and redirect to login.
+No authentication token is stored in or sent to the service worker.
+
+### Service worker behavior
+
+`/sw.js` handles push display and notification clicks without adding Workbox,
+offline caching, background sync, or PWA installation behavior.
+
+Valid payloads display their title, body, and non-sensitive reminder data.
+Malformed or absent payloads use a generic Trackly fallback. No icon or badge
+is configured because the repository does not currently contain an appropriate
+notification asset.
+
+Click routing uses a fixed allowlist derived from known notification types.
+Habit reminders and unknown payloads route to `/today`. Arbitrary URLs in push
+data are ignored. The worker focuses and navigates an existing same-origin
+Trackly window when possible or opens a new same-origin window.
+
+### Manual local validation
+
+1. Generate VAPID keys and configure both backend keys, the VAPID subject, and
+   the matching frontend public key.
+2. Start Trackly on `localhost` or HTTPS and sign in.
+3. Open `/settings/preferences`.
+4. Confirm no permission prompt appears before clicking Enable notifications.
+5. Enable notifications and inspect that the browser creates one subscription
+   and Trackly sends one authenticated POST.
+6. Refresh the page and confirm the device remains enabled without creating a
+   new subscription or prompting again.
+7. Disable notifications and confirm the authenticated DELETE precedes local
+   unsubscribe.
+8. For notification-click testing, use browser developer tools or a controlled
+   local push fixture and confirm navigation remains on the `/today` route.
+
+Automated tests mock every PushManager and service-worker operation. They do not
+contact a real browser push endpoint.
+
+Browser behavior varies by engine and operating system, and private/incognito
+contexts may discard subscriptions. iOS support depends on its installed web
+application and browser-version requirements; Trackly does not add installation
+UI in this milestone.

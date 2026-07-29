@@ -6,8 +6,11 @@ import { goals } from './goals.js';
 import { habitCheckIns } from './habit-check-ins.js';
 import { habitSchedules } from './habit-schedules.js';
 import { habits } from './habits.js';
+import { notificationDeliveries } from './notification-deliveries.js';
+import { pushSubscriptions } from './push-subscriptions.js';
 import { reminders } from './reminders.js';
 import { tasks } from './tasks.js';
+import { user } from './auth.js';
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
   habits: many(habits),
@@ -16,12 +19,33 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
   reminders: many(reminders),
 }));
 
-export const remindersRelations = relations(reminders, ({ one }) => ({
+export const remindersRelations = relations(reminders, ({ one, many }) => ({
   habit: one(habits, {
     fields: [reminders.habitId],
     references: [habits.id],
   }),
+  deliveries: many(notificationDeliveries),
 }));
+
+export const notificationDeliveriesRelations = relations(
+  notificationDeliveries,
+  ({ one }) => ({
+    reminder: one(reminders, {
+      fields: [notificationDeliveries.reminderId],
+      references: [reminders.id],
+    }),
+  }),
+);
+
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [pushSubscriptions.userId],
+      references: [user.id],
+    }),
+  }),
+);
 
 export const habitsRelations = relations(habits, ({ one, many }) => ({
   category: one(categories, {
