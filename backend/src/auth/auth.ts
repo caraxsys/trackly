@@ -5,7 +5,18 @@ import { environment } from '../config/environment.js';
 import { database, type Database } from '../db/client.js';
 import { userPreferences } from '../db/schema/user-preferences.js';
 
-export function createAuth(databaseConnection: Database) {
+interface CreateAuthOptions {
+  requireEmailVerification?: boolean;
+}
+
+export function createAuth(
+  databaseConnection: Database,
+  options: CreateAuthOptions = {},
+) {
+  const requireEmailVerification =
+    options.requireEmailVerification ??
+    environment.AUTH_REQUIRE_EMAIL_VERIFICATION;
+
   return betterAuth({
     appName: 'Trackly',
     baseURL: environment.BETTER_AUTH_URL,
@@ -17,7 +28,7 @@ export function createAuth(databaseConnection: Database) {
       enabled: true,
       minPasswordLength: 8,
       maxPasswordLength: 128,
-      requireEmailVerification: false,
+      requireEmailVerification,
     },
     session: {
       expiresIn: environment.AUTH_SESSION_EXPIRES_IN,

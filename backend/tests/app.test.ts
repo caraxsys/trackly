@@ -70,6 +70,20 @@ describe('backend foundation', () => {
     expect(redaction.censor).toBe('[REDACTED]');
   });
 
+  it('sets restrictive browser security headers', async () => {
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    const csp = response.headers['content-security-policy'];
+
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).not.toContain('*');
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['referrer-policy']).toBe(
+      'strict-origin-when-cross-origin',
+    );
+  });
+
   it('returns process health without querying PostgreSQL', async () => {
     const response = await app.inject({
       method: 'GET',

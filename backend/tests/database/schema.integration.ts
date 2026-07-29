@@ -118,7 +118,15 @@ async function authRequest(
   path: string,
   options: { body?: Record<string, unknown>; cookie?: string } = {},
 ) {
-  return testAuth.handler(
+  return authRequestWith(testAuth, path, options);
+}
+
+async function authRequestWith(
+  authInstance: Auth,
+  path: string,
+  options: { body?: Record<string, unknown>; cookie?: string } = {},
+) {
+  return authInstance.handler(
     new Request(`http://localhost:4000/api/auth${path}`, {
       method: options.body ? 'POST' : 'GET',
       headers: {
@@ -291,6 +299,34 @@ describe('core database domain schema', () => {
     expect(await expiredSession.json()).toBeNull();
 
     expect(registrationCookie).toContain('session');
+  });
+
+  it('requires verified email ownership when the strict policy is enabled', async () => {
+    const strictAuth = createAuth(database, {
+      requireEmailVerification: true,
+    });
+    const email = `verified-policy-${randomUUID()}@example.com`;
+    const password = 'correct-horse-battery-staple';
+
+    const registration = await authRequestWith(strictAuth, '/sign-up/email', {
+      body: { name: 'Verification Policy', email, password },
+    });
+    expect(registration.status).toBe(200);
+
+    const blockedLogin = await authRequestWith(strictAuth, '/sign-in/email', {
+      body: { email, password },
+    });
+    expect(blockedLogin.status).toBe(403);
+
+    await database
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.email, email));
+
+    const verifiedLogin = await authRequestWith(strictAuth, '/sign-in/email', {
+      body: { email, password },
+    });
+    expect(verifiedLogin.status).toBe(200);
   });
 
   it('rejects duplicate habit check-ins for one habit and date', async () => {

@@ -166,11 +166,43 @@ character passwords, database sessions, trusted origins, configurable expiry,
 and built-in rate limits. Production enables secure cookies; localhost
 development permits HTTP cookies.
 
+Email verification is disabled by default in development so local registration
+remains self-contained. Production configuration defaults to requiring a
+verified email and rejects attempts to disable that policy. Until a transactional
+email adapter is configured, production accounts must not be opened for public
+registration; verification delivery is intentionally not emulated or logged.
+
 `src/auth/session.ts` converts Node headers with Better Auth's official helper,
 caches one lookup per Fastify request, and exposes `requireSession()` and
 `requireUserId()`. Unauthenticated Trackly routes receive the centralized
 `UNAUTHORIZED` error. `GET /api/v1/auth/me` exposes only safe user fields and
 session expiry.
+
+## Security policy
+
+Fastify Helmet applies a restrictive Content Security Policy and complementary
+browser headers. Swagger requires narrowly scoped inline script/style allowances;
+wildcard, object, and frame sources remain forbidden. The Next.js frontend sends
+its own CSP, permits only the configured API origin, limits browser capabilities,
+and allows `unsafe-eval` only for the development toolchain.
+
+Trackly API reads are limited to 120 requests per IP and endpoint per minute and
+mutations to 30 requests per IP and endpoint per minute by default. Better Auth retains its tighter
+sign-in/sign-up limits. Health, readiness, authentication-owned routes, Swagger,
+and development diagnostics are not counted by the application limiter.
+Exceeded limits return the standard `RATE_LIMIT_EXCEEDED` HTTP 429 envelope.
+Enable `TRUST_PROXY` only behind a trusted proxy that overwrites forwarded IP
+headers.
+
+Swagger and the temporary validation diagnostic are enabled by default only
+outside production. Production may explicitly expose Swagger with
+`EXPOSE_API_DOCS=true`; temporary diagnostics cannot be enabled in production.
+Production also requires HTTPS auth/CORS origins, secure cookies, verified email
+access, non-placeholder auth secrets, and complete VAPID configuration.
+
+Run `pnpm audit:security` for a production-dependency audit. The lockfile remains
+the source of reproducible dependency resolution; dependency upgrades require a
+separate reviewed change.
 
 ## Authenticated query modules
 
