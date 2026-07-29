@@ -443,6 +443,14 @@ describe('backend foundation', () => {
       }),
       app.inject({
         method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/archive',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/restore',
+      }),
+      app.inject({
+        method: 'POST',
         url: '/api/v1/habits/00000000-0000-4000-8000-000000000000/check-in',
         payload: { completedCount: 1 },
       }),
@@ -452,6 +460,12 @@ describe('backend foundation', () => {
     expect(responses.every((response) => response.statusCode === 401)).toBe(
       true,
     );
+    const habitPaths = app.swagger().paths;
+    expect(habitPaths?.['/api/v1/habits/{id}/archive']?.post).toBeDefined();
+    expect(habitPaths?.['/api/v1/habits/{id}/restore']?.post).toBeDefined();
+    expect(
+      JSON.stringify(habitPaths?.['/api/v1/habits']?.get),
+    ).toContain('archived');
   });
 
   it('rejects malformed habit mutation payloads', async () => {

@@ -51,7 +51,7 @@ const query: HabitCollectionData['query'] = {
 };
 
 describe('habit collection UI', () => {
-  it('renders list metadata, completion, inactive status, and detail links', () => {
+  it('renders list metadata, completion, archived status, and detail links', () => {
     const inactive = {
       ...daily,
       id: '00000000-0000-4000-8000-000000000002',
@@ -71,7 +71,7 @@ describe('habit collection UI', () => {
     expect(screen.getByText('Every day')).toBeInTheDocument();
     expect(screen.getByText('Mon, Wed, Fri')).toBeInTheDocument();
     expect(screen.getByText('2/2 completed')).toBeInTheDocument();
-    expect(screen.getByText('Inactive')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'View Morning water details' }),
     ).toHaveAttribute('href', `/habits/${daily.id}`);
@@ -93,6 +93,10 @@ describe('habit collection UI', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Sort by')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Archived' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('view=archived'),
+    );
     expect(screen.getByRole('link', { name: 'Next day' })).toHaveAttribute(
       'href',
       expect.stringContaining('date=2026-07-28'),
@@ -145,7 +149,7 @@ describe('habit detail UI', () => {
       `/habits/${detail.id}/edit`,
     );
     expect(
-      screen.getByRole('button', { name: 'Deactivate' }),
+      screen.getByRole('button', { name: 'Archive' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(

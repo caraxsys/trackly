@@ -16,7 +16,7 @@ describe('habit URL state', () => {
     expect(habitsHref(query, { page: 2 })).toBe(
       '/habits?view=all&date=2026-07-27&search=reading&sort=name&order=asc&page=2',
     );
-    expect(habitsHref(query, { view: 'inactive', page: 1 })).not.toContain(
+    expect(habitsHref(query, { view: 'archived', page: 1 })).not.toContain(
       'page=',
     );
     expect(habitsHref(query, { search: undefined })).not.toContain('search=');

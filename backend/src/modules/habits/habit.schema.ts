@@ -12,7 +12,7 @@ const optionalDate = z
 const positiveInteger = z.coerce.number().int().positive();
 
 export const habitCollectionQuerySchema = z.object({
-  view: z.enum(['today', 'all', 'inactive']).default('today'),
+  view: z.enum(['today', 'all', 'archived', 'inactive']).default('today'),
   date: optionalDate,
   search: z
     .string()

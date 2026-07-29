@@ -14,15 +14,15 @@ export function HabitEmptyState({
     ? `No habits match “${query.search}”`
     : query.view === 'today'
       ? 'No habits scheduled'
-      : query.view === 'inactive'
-        ? 'No inactive habits'
+      : query.view === 'archived' || query.view === 'inactive'
+        ? 'No archived habits'
         : 'No habits yet';
   const description = searched
     ? 'Try another term or clear the search to see the full view.'
     : query.view === 'today'
       ? 'Your routine is clear for this selected date.'
-      : query.view === 'inactive'
-        ? 'All of your visible habits are currently active.'
+      : query.view === 'archived' || query.view === 'inactive'
+        ? 'Archived habits will appear here while their history stays intact.'
         : 'Habit creation will be available in a future milestone.';
   const Icon = searched ? SearchX : Sprout;
 

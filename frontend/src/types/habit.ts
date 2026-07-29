@@ -1,4 +1,4 @@
-export type HabitView = 'today' | 'all' | 'inactive';
+export type HabitView = 'today' | 'all' | 'archived' | 'inactive';
 export type HabitSort = 'position' | 'name' | 'createdAt' | 'updatedAt';
 export type SortOrder = 'asc' | 'desc';
 export type HabitFrequency = 'daily' | 'weekly' | 'custom';

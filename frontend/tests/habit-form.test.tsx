@@ -12,8 +12,8 @@ const replace = vi.fn();
 const refresh = vi.fn();
 const createHabit = vi.fn();
 const updateHabit = vi.fn();
-const activateHabit = vi.fn();
-const deactivateHabit = vi.fn();
+const archiveHabit = vi.fn();
+const restoreHabit = vi.fn();
 const deleteHabit = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -23,8 +23,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/services/habit-mutation-service', () => ({
   createHabit: (...args: unknown[]) => createHabit(...args),
   updateHabit: (...args: unknown[]) => updateHabit(...args),
-  activateHabit: (...args: unknown[]) => activateHabit(...args),
-  deactivateHabit: (...args: unknown[]) => deactivateHabit(...args),
+  archiveHabit: (...args: unknown[]) => archiveHabit(...args),
+  restoreHabit: (...args: unknown[]) => restoreHabit(...args),
   deleteHabit: (...args: unknown[]) => deleteHabit(...args),
 }));
 
@@ -190,36 +190,34 @@ describe('HabitForm', () => {
 describe('Habit lifecycle actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    activateHabit.mockResolvedValue({ id: 'habit-id', isActive: true });
-    deactivateHabit.mockResolvedValue({ id: 'habit-id', isActive: false });
+    restoreHabit.mockResolvedValue({ id: 'habit-id', isActive: true });
+    archiveHabit.mockResolvedValue({ id: 'habit-id', isActive: false });
     deleteHabit.mockResolvedValue({ id: 'habit-id', deleted: true });
   });
 
-  it('activates and deactivates through dedicated endpoints', async () => {
+  it('archives and restores through dedicated endpoints', async () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <HabitLifecycleActions habitId="habit-id" isActive={false} />,
     );
-    await user.click(screen.getByRole('button', { name: 'Activate' }));
-    await user.click(screen.getByRole('button', { name: 'Activate habit' }));
-    await waitFor(() => expect(activateHabit).toHaveBeenCalledWith('habit-id'));
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    await user.click(screen.getByRole('button', { name: 'Restore habit' }));
+    await waitFor(() => expect(restoreHabit).toHaveBeenCalledWith('habit-id'));
 
     rerender(<HabitLifecycleActions habitId="habit-id" isActive />);
-    await user.click(screen.getByRole('button', { name: 'Deactivate' }));
-    await user.click(screen.getByRole('button', { name: 'Deactivate habit' }));
-    await waitFor(() =>
-      expect(deactivateHabit).toHaveBeenCalledWith('habit-id'),
-    );
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    await user.click(screen.getByRole('button', { name: 'Archive habit' }));
+    await waitFor(() => expect(archiveHabit).toHaveBeenCalledWith('habit-id'));
   });
 
   it('handles lifecycle conflicts gracefully', async () => {
-    activateHabit.mockRejectedValue(
+    restoreHabit.mockRejectedValue(
       new ApiError({ code: 'CONFLICT', message: 'Conflict', status: 409 }),
     );
     const user = userEvent.setup();
     render(<HabitLifecycleActions habitId="habit-id" isActive={false} />);
-    await user.click(screen.getByRole('button', { name: 'Activate' }));
-    await user.click(screen.getByRole('button', { name: 'Activate habit' }));
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    await user.click(screen.getByRole('button', { name: 'Restore habit' }));
     expect(
       await screen.findByText(/changed state elsewhere/i),
     ).toBeInTheDocument();

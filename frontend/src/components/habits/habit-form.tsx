@@ -36,10 +36,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   ) : null;
 }
 
-function mutationPayload(
-  values: HabitFormValues,
-  includeActive: boolean,
-): HabitMutationPayload {
+function mutationPayload(values: HabitFormValues): HabitMutationPayload {
   return {
     name: values.name.trim(),
     description: values.description.trim() || null,
@@ -52,7 +49,6 @@ function mutationPayload(
       values.frequencyType === 'daily'
         ? []
         : [...new Set(values.weekdays)].sort((a, b) => a - b),
-    ...(includeActive ? { isActive: values.isActive } : {}),
   };
 }
 
@@ -98,8 +94,8 @@ export function HabitForm({
     try {
       const result =
         mode === 'create'
-          ? await createHabit(mutationPayload(values, true))
-          : await updateHabit(habitId ?? '', mutationPayload(values, false));
+          ? await createHabit(mutationPayload(values))
+          : await updateHabit(habitId ?? '', mutationPayload(values));
       router.push(
         `/habits/${result.id}?success=${mode === 'create' ? 'created' : 'updated'}`,
       );
@@ -337,21 +333,6 @@ export function HabitForm({
           </div>
         </div>
 
-        {mode === 'create' && (
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              {...register('isActive')}
-              className="accent-primary mt-0.5 size-4"
-              type="checkbox"
-            />
-            <span>
-              <span className="font-medium">Start active</span>
-              <span className="text-muted-foreground mt-0.5 block">
-                Active habits appear in scheduled views.
-              </span>
-            </span>
-          </label>
-        )}
       </fieldset>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

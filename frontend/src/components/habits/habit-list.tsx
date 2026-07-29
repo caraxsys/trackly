@@ -28,7 +28,7 @@ export function HabitList({ items }: { items: HabitListItem[] }) {
                   {habit.name}
                 </Link>
                 <StatusBadge muted={!habit.isActive}>
-                  {habit.isActive ? 'Active' : 'Inactive'}
+                  {habit.isActive ? 'Active' : 'Archived'}
                 </StatusBadge>
                 <CategoryBadge category={habit.category} />
               </div>
