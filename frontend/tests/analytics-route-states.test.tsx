@@ -16,12 +16,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     getServerSession: vi.fn(),
-    getServerAnalyticsHistory: vi.fn(),
-    getServerAnalyticsHeatmap: vi.fn(),
-    getServerAnalyticsCategories: vi.fn(),
-    getServerAnalyticsHabits: vi.fn(),
-    getServerAnalyticsInsights: vi.fn(),
-    getServerAnalyticsSummary: vi.fn(),
+    getServerAnalyticsDashboard: vi.fn(),
     redirect: vi.fn(),
     AnalyticsServerError: MockAnalyticsServerError,
   };
@@ -31,12 +26,7 @@ vi.mock('@/lib/auth-session', () => ({
   getServerSession: mocks.getServerSession,
 }));
 vi.mock('@/services/analytics-server-service', () => ({
-  getServerAnalyticsHistory: mocks.getServerAnalyticsHistory,
-  getServerAnalyticsHeatmap: mocks.getServerAnalyticsHeatmap,
-  getServerAnalyticsCategories: mocks.getServerAnalyticsCategories,
-  getServerAnalyticsHabits: mocks.getServerAnalyticsHabits,
-  getServerAnalyticsInsights: mocks.getServerAnalyticsInsights,
-  getServerAnalyticsSummary: mocks.getServerAnalyticsSummary,
+  getServerAnalyticsDashboard: mocks.getServerAnalyticsDashboard,
   AnalyticsServerError: mocks.AnalyticsServerError,
 }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -47,7 +37,7 @@ describe('Analytics route states', () => {
       user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
       session: { expiresAt: new Date() },
     });
-    mocks.getServerAnalyticsSummary.mockRejectedValueOnce(
+    mocks.getServerAnalyticsDashboard.mockRejectedValueOnce(
       new mocks.AnalyticsServerError(400, 'VALIDATION_ERROR'),
     );
 
@@ -70,71 +60,73 @@ describe('Analytics route states', () => {
       user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
       session: { expiresAt: new Date() },
     });
-    mocks.getServerAnalyticsSummary.mockResolvedValue({
-      period: 'week',
-      startDate: '2026-07-27',
-      endDate: '2026-08-02',
-      scheduledCount: 0,
-      completedCount: 0,
-      completionRate: 0,
-      totalTargetCount: 0,
-      totalCompletedCount: 0,
-      progressRate: 0,
-    });
-    mocks.getServerAnalyticsHistory.mockResolvedValue({
-      period: '30d',
-      granularity: 'day',
-      startDate: '2026-06-29',
-      endDate: '2026-07-28',
+    mocks.getServerAnalyticsDashboard.mockResolvedValue({
       summary: {
-        averageCompletionRate: 0,
-        averageProgressRate: 0,
+        period: 'week',
+        startDate: '2026-07-27',
+        endDate: '2026-08-02',
         scheduledCount: 0,
         completedCount: 0,
+        completionRate: 0,
         totalTargetCount: 0,
         totalCompletedCount: 0,
+        progressRate: 0,
       },
-      history: [],
-    });
-    mocks.getServerAnalyticsInsights.mockResolvedValue({
-      period: '30d',
-      startDate: '2026-06-29',
-      endDate: '2026-07-28',
-      hasActivity: false,
+      history: {
+        period: '30d',
+        granularity: 'day',
+        startDate: '2026-06-29',
+        endDate: '2026-07-28',
+        summary: {
+          averageCompletionRate: 0,
+          averageProgressRate: 0,
+          scheduledCount: 0,
+          completedCount: 0,
+          totalTargetCount: 0,
+          totalCompletedCount: 0,
+        },
+        history: [],
+      },
       insights: {
-        bestDay: null,
-        lowestDay: null,
-        mostProductiveWeekday: null,
-        consistency: null,
-        trend: null,
+        period: '30d',
+        startDate: '2026-06-29',
+        endDate: '2026-07-28',
+        hasActivity: false,
+        insights: {
+          bestDay: null,
+          lowestDay: null,
+          mostProductiveWeekday: null,
+          consistency: null,
+          trend: null,
+        },
       },
-    });
-    mocks.getServerAnalyticsHeatmap.mockResolvedValue({
-      period: '365d',
-      startDate: '2025-07-29',
-      endDate: '2026-07-28',
-      summary: {
-        activeDays: 0,
-        completedDays: 0,
-        totalScheduledCount: 0,
-        totalCompletedCount: 0,
-        averageCompletionRate: 0,
+      heatmap: {
+        period: '365d',
+        startDate: '2025-07-29',
+        endDate: '2026-07-28',
+        summary: {
+          activeDays: 0,
+          completedDays: 0,
+          totalScheduledCount: 0,
+          totalCompletedCount: 0,
+          averageCompletionRate: 0,
+        },
+        days: [],
       },
-      days: [],
-    });
-    mocks.getServerAnalyticsCategories.mockResolvedValue({
-      period: '30d',
-      startDate: '2026-06-29',
-      endDate: '2026-07-28',
-      hasActivity: false,
-      categories: [],
-    });
-    mocks.getServerAnalyticsHabits.mockResolvedValue({
-      period: '30d',
-      startDate: '2026-06-29',
-      endDate: '2026-07-28',
-      hasActivity: false,
-      habits: [],
+      categories: {
+        period: '30d',
+        startDate: '2026-06-29',
+        endDate: '2026-07-28',
+        hasActivity: false,
+        categories: [],
+      },
+      habits: {
+        period: '30d',
+        startDate: '2026-06-29',
+        endDate: '2026-07-28',
+        hasActivity: false,
+        habits: [],
+      },
     });
 
     render(
@@ -143,9 +135,11 @@ describe('Analytics route states', () => {
       }),
     );
 
-    expect(mocks.getServerAnalyticsHistory).toHaveBeenCalledWith('30d');
-    expect(mocks.getServerAnalyticsInsights).toHaveBeenCalledWith('30d');
-    expect(mocks.getServerAnalyticsHeatmap).toHaveBeenCalledWith('365d');
+    expect(mocks.getServerAnalyticsDashboard).toHaveBeenCalledWith({
+      period: 'week',
+      historyPeriod: '30d',
+      heatmapPeriod: '365d',
+    });
     expect(
       screen.getByRole('navigation', { name: 'Analytics history period' }),
     ).toBeVisible();

@@ -11,12 +11,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { getServerSession } from '@/lib/auth-session';
 import {
   AnalyticsServerError,
-  getServerAnalyticsHeatmap,
-  getServerAnalyticsCategories,
-  getServerAnalyticsHabits,
-  getServerAnalyticsHistory,
-  getServerAnalyticsInsights,
-  getServerAnalyticsSummary,
+  getServerAnalyticsDashboard,
 } from '@/services/analytics-server-service';
 import type {
   AnalyticsHeatmapPeriod,
@@ -57,23 +52,16 @@ export default async function AnalyticsPage({
     '365d') as AnalyticsHeatmapPeriod;
   const date = readSingle(query.date);
 
-  let data;
-  let history;
-  let insights;
-  let heatmap;
-  let categories;
-  let habits;
+  let dashboard;
   let invalidQuery = false;
 
   try {
-    [data, history, insights, heatmap, categories, habits] = await Promise.all([
-      getServerAnalyticsSummary(period, date),
-      getServerAnalyticsHistory(historyPeriod),
-      getServerAnalyticsInsights(historyPeriod),
-      getServerAnalyticsHeatmap(heatmapPeriod),
-      getServerAnalyticsCategories(historyPeriod),
-      getServerAnalyticsHabits(historyPeriod),
-    ]);
+    dashboard = await getServerAnalyticsDashboard({
+      period,
+      historyPeriod,
+      heatmapPeriod,
+      ...(date ? { date } : {}),
+    });
   } catch (error) {
     if (error instanceof AnalyticsServerError && error.status === 401) {
       redirect('/login');
@@ -85,15 +73,7 @@ export default async function AnalyticsPage({
     }
   }
 
-  if (
-    invalidQuery ||
-    !data ||
-    !history ||
-    !insights ||
-    !heatmap ||
-    !categories ||
-    !habits
-  ) {
+  if (invalidQuery || !dashboard) {
     return (
       <section
         className="border-border bg-surface rounded-xl border px-6 py-12 text-center"
@@ -122,21 +102,24 @@ export default async function AnalyticsPage({
         description="Review scheduled habit occurrences and absolute progress for a local-calendar range."
         title="Analytics"
       />
-      <AnalyticsSummary data={data} selectedDate={date} />
+      <AnalyticsSummary data={dashboard.summary} selectedDate={date} />
       <AnalyticsHistory
-        data={history}
+        data={dashboard.history}
         heatmapPeriod={heatmapPeriod}
         selectedDate={date}
         summaryPeriod={period}
       />
-      <AnalyticsInsights data={insights} />
+      <AnalyticsInsights data={dashboard.insights} />
       <AnalyticsHeatmap
-        data={heatmap}
+        data={dashboard.heatmap}
         historyPeriod={historyPeriod}
         selectedDate={date}
         summaryPeriod={period}
       />
-      <AnalyticsRankings categories={categories} habits={habits} />
+      <AnalyticsRankings
+        categories={dashboard.categories}
+        habits={dashboard.habits}
+      />
     </div>
   );
 }

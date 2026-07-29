@@ -35,6 +35,7 @@ export function createAnalyticsQueryRepository(database: Database) {
             id: habits.id,
             name: habits.name,
             frequencyType: habits.frequencyType,
+            isActive: habits.isActive,
             targetCount: habits.targetCount,
             startDate: habits.startDate,
             endDate: habits.endDate,
@@ -95,6 +96,7 @@ export function createAnalyticsQueryRepository(database: Database) {
             ? { categoryId: row.categoryId, name: row.categoryName }
             : null,
         frequencyType: row.frequencyType,
+        isActive: row.isActive,
         targetCount: row.targetCount,
         startDate: row.startDate,
         endDate: row.endDate,

@@ -139,3 +139,12 @@ export interface AnalyticsHabitRankings {
     longestStreak: number;
   }>;
 }
+
+export interface AnalyticsDashboardData {
+  categories: AnalyticsCategoryRankings;
+  habits: AnalyticsHabitRankings;
+  heatmap: AnalyticsHeatmapData;
+  history: AnalyticsHistoryData;
+  insights: AnalyticsInsightsData;
+  summary: AnalyticsSummaryData;
+}

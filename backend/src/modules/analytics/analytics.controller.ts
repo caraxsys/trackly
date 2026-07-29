@@ -4,6 +4,7 @@ import { requireUserId } from '../../auth/session.js';
 import { successResponse } from '../../http/responses.js';
 import type {
   AnalyticsHeatmapQuery,
+  AnalyticsDashboardQuery,
   AnalyticsHistoryQuery,
   AnalyticsInsightsQuery,
   AnalyticsRankingQuery,
@@ -23,6 +24,21 @@ export function createAnalyticsQueryController(
   }
 
   return {
+    dashboard: async (
+      request: FastifyRequest<{ Querystring: AnalyticsDashboardQuery }>,
+    ) => {
+      const userId = await requireUserId(request);
+      return successResponse(
+        await analyticsService.getDashboard({
+          userId,
+          period: request.query.period,
+          historyPeriod: request.query.historyPeriod,
+          heatmapPeriod: request.query.heatmapPeriod,
+          ...(request.query.date ? { date: request.query.date } : {}),
+          onTimezoneFallback: timezoneFallback(request),
+        }),
+      );
+    },
     categories: async (
       request: FastifyRequest<{ Querystring: AnalyticsRankingQuery }>,
     ) => {

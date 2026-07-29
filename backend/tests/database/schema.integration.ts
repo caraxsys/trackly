@@ -2091,6 +2091,32 @@ describe('core database domain schema', () => {
         ({ activeHabitCount }) => activeHabitCount > 0,
       ),
     ).toBe(true);
+
+    const dashboard = await analyticsService().getDashboard({
+      userId,
+      period: 'week',
+      date: '2026-07-29',
+      historyPeriod: '7d',
+      heatmapPeriod: '90d',
+      now: new Date('2026-08-02T12:00:00.000Z'),
+    });
+    expect(dashboard.summary).toEqual({
+      period: 'week',
+      startDate: '2026-07-27',
+      endDate: '2026-08-02',
+      scheduledCount: 4,
+      completedCount: 1,
+      completionRate: 25,
+      totalTargetCount: 8,
+      totalCompletedCount: 4,
+      progressRate: 50,
+    });
+    expect(dashboard.history).toEqual(history);
+    expect(dashboard.insights).toEqual(insights);
+    expect(dashboard.heatmap).toEqual(heatmap);
+    expect(dashboard.habits).toEqual(habitRankings);
+    expect(dashboard.categories).toEqual(categoryRankings);
+    expect(JSON.stringify(dashboard)).not.toContain('Analytics foreign');
   });
 
   it('rolls back the habit insert when schedule persistence fails', async () => {

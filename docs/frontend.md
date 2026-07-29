@@ -40,19 +40,20 @@ cleanliness against the Dockerized API.
 
 ## Route map
 
-| Route        | Purpose                               |
-| ------------ | ------------------------------------- |
-| `/`          | Redirects to `/today`                 |
-| `/today`     | Authenticated daily dashboard         |
-| `/habits`    | Authenticated Habit collection        |
-| `/analytics` | Authenticated Habit analytics summary |
-| `/tasks`     | Future tasks module placeholder       |
-| `/goals`     | Future goals module placeholder       |
-| `/insights`  | Reserved future insights placeholder  |
-| `/settings`  | Future preferences placeholder        |
+| Route        | Purpose                                |
+| ------------ | -------------------------------------- |
+| `/`          | Redirects to `/today`                  |
+| `/today`     | Authenticated daily dashboard          |
+| `/habits`    | Authenticated Habit collection         |
+| `/analytics` | Authenticated Habit analytics summary  |
+| `/tasks`     | Future tasks module placeholder        |
+| `/goals`     | Authenticated Goal collection          |
+| `/insights`  | Reserved future insights placeholder   |
+| `/settings`  | Authenticated settings and preferences |
 
 Application-shell routes are protected; authentication routes are guest-only.
-No business data is loaded in this milestone.
+Implemented routes load authenticated user-owned data through their server
+services; reserved placeholders do not.
 
 ## Application shell
 

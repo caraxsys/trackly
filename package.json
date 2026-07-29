@@ -11,6 +11,7 @@
     "test:backend": "corepack pnpm --filter @trackly/backend test",
     "test:frontend": "corepack pnpm --filter @trackly/frontend test",
     "test:database": "corepack pnpm --filter @trackly/backend test:database",
+    "validate": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:backend && corepack pnpm test:frontend && corepack pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "corepack pnpm --filter @trackly/backend db:generate",

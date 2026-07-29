@@ -271,11 +271,7 @@ export function habitRoutes(app: FastifyInstance) {
   );
 
   for (const [path, summary, handler] of [
-    [
-      '/habits/:id/archive',
-      'Archive a habit',
-      commandController.archive,
-    ],
+    ['/habits/:id/archive', 'Archive a habit', commandController.archive],
     [
       '/habits/:id/restore',
       'Restore an archived habit',

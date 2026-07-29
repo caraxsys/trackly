@@ -9,10 +9,20 @@ export interface AnalyticsHabitRecord {
   endDate: string | null;
   frequencyType: 'daily' | 'weekly' | 'custom';
   id: string;
+  isActive: boolean;
   name?: string;
   startDate: string;
   targetCount: number;
   weekdays: number[];
+}
+
+export interface AnalyticsDashboard {
+  categories: AnalyticsCategoryRanking;
+  habits: AnalyticsHabitRanking;
+  heatmap: AnalyticsHeatmap;
+  history: AnalyticsHistory;
+  insights: AnalyticsInsights;
+  summary: AnalyticsSummary;
 }
 
 export interface AnalyticsSummary {
