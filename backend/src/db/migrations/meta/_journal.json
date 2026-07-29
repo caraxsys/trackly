@@ -50,6 +50,13 @@
       "when": 1785296102840,
       "tag": "0006_brown_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785304807832,
+      "tag": "0007_talented_absorbing_man",
+      "breakpoints": true
     }
   ]
 }

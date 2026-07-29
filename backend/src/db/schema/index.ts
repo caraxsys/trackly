@@ -7,6 +7,7 @@ export * from './habit-check-ins.js';
 export * from './habit-schedules.js';
 export * from './habits.js';
 export * from './notification-deliveries.js';
+export * from './push-subscriptions.js';
 export * from './reminders.js';
 export * from './relations.js';
 export * from './shared.js';

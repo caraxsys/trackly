@@ -28,4 +28,5 @@ export const notificationDeliveryStatus = pgEnum(
 
 export const notificationProviderName = pgEnum('notification_provider_name', [
   'noop',
+  'web_push',
 ]);

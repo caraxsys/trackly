@@ -165,10 +165,10 @@ Structured events are:
 - `reminder_scheduler_stopped`
 - `reminder_scheduler_startup_failed`
 
-The scheduler currently determines which Reminders are eligible. It does not
-send notifications. It provides no exactly-once guarantee, delivery retry,
-history, or repeated-hour deduplication; those responsibilities remain in a
-future delivery milestone.
+The scheduler determines which Reminders are eligible and passes those
+occurrences to the provider-neutral delivery pipeline. It does not contain
+provider implementation details. Durable occurrence claims prevent duplicate
+dispatch, but there is no automatic retry, distributed lock, or catch-up scan.
 
 ## Notification delivery foundation
 
@@ -180,7 +180,9 @@ Scheduler runner
   → delivery coordinator
   → durable occurrence claim
   → dispatcher
-  → Noop provider
+  → explicitly selected provider
+      → Noop provider, or
+      → Web Push provider
   → terminal delivery status
 ```
 
@@ -220,7 +222,7 @@ Statuses are:
 - `skipped`: a claimed occurrence was intentionally not dispatched.
 
 Allowed automatic transitions are `pending → processing`,
-`processing → delivered`, `processing → failed`, and `pending → skipped`.
+`processing → delivered`, `processing → failed`, and `processing → skipped`.
 Conditional database updates prevent terminal `delivered` or `skipped` records
 from returning to processing or being overwritten. Failed deliveries are not
 automatically retried.
@@ -235,11 +237,94 @@ Providers receive only delivery and occurrence identifiers, local scheduling
 values, timezone, and minimal title/body content. The dispatcher uses an
 explicit provider registry and never falls back for unsupported names.
 
-`NoopNotificationProvider` is the only provider in this foundation. It performs
-no network or external I/O, returns deterministic success, and logs no content
-payload. The Noop provider performs no external delivery. A `delivered` Noop
-record only confirms that the delivery pipeline and provider contract completed
-successfully.
+The dispatcher registers `noop` and `web_push` explicitly and never falls back
+between them. `NoopNotificationProvider` performs no network or external I/O,
+returns deterministic success, and logs no content payload. A `delivered` Noop
+record only confirms that the provider contract completed successfully.
+
+## Web Push backend
+
+The Web Push provider implements the existing provider contract using standard
+browser Web Push and VAPID:
+
+```text
+Delivery coordinator
+  → provider dispatcher
+  → WebPushNotificationProvider
+  → active push subscriptions
+  → browser push services
+```
+
+The scheduler, eligibility engine, and coordinator do not import Web Push
+library types or subscription storage. When complete VAPID configuration is
+available, scheduler composition registers both providers and explicitly
+selects `web_push`. Without Web Push configuration, non-production scheduler
+runs retain the Noop provider. Production environment validation requires all
+Web Push configuration.
+
+### VAPID configuration
+
+Generate a VAPID key pair with the installed Web Push package:
+
+```bash
+pnpm --filter @trackly/backend exec web-push generate-vapid-keys
+```
+
+Configure:
+
+```dotenv
+WEB_PUSH_VAPID_PUBLIC_KEY=
+WEB_PUSH_VAPID_PRIVATE_KEY=
+WEB_PUSH_SUBJECT=mailto:admin@example.com
+```
+
+`WEB_PUSH_SUBJECT` accepts a `mailto:` contact or an HTTPS URL. Never commit the
+private key or expose it through an API or log. Invalid key material fails Web
+Push provider initialization with a public configuration error.
+
+### Subscription API and lifecycle
+
+All endpoints require the authenticated Better Auth session and are under
+`/api/v1`:
+
+- `POST /push-subscriptions` creates, updates, or reactivates an endpoint for
+  the current user.
+- `GET /push-subscriptions` lists only the current user's active subscriptions
+  with a truncated endpoint identifier and safe metadata.
+- `DELETE /push-subscriptions` idempotently soft-deletes the current user's
+  matching endpoint.
+
+The POST body contains an HTTPS `endpoint`, `keys.p256dh`, `keys.auth`, and an
+optional bounded `userAgent`. User IDs are never accepted from clients. An
+active endpoint owned by another user is not reassigned. Multiple endpoints are
+supported per user, while a partial unique index prevents two active records
+for the same endpoint.
+
+Subscriptions track enabled state, last success and failure instants, and a
+non-negative consecutive failure count. Successful delivery resets the failure
+count. Transient failures increment it without automatic retry. HTTP 404 and
+410 responses permanently invalidate and soft-delete the affected
+subscription, preventing future attempts.
+
+API responses never expose subscription key material or full endpoints.
+Provider logs omit endpoints, subscription keys, payload bodies, upstream error
+messages, and VAPID secrets.
+
+### Multi-subscription delivery semantics
+
+Each active subscription is attempted independently:
+
+- `delivered`: at least one push service accepted the notification;
+- `failed`: active subscriptions existed, but all attempts failed;
+- `skipped`: no active subscriptions existed.
+
+One failed endpoint does not block the remaining endpoints or later Reminder
+occurrences. Duplicate occurrence claims never invoke Web Push again.
+
+The JSON payload contains only a generic Trackly title/body and the notification
+type, Habit ID, Reminder ID, scheduled local date, and scheduled local time. It
+contains no email address, name, authentication data, subscription secrets, or
+other sensitive user information.
 
 ### Scheduler aggregation and failures
 
@@ -251,7 +336,6 @@ fails the entire tick.
 
 No automatic retry, retry backoff, delivery queue, dead-letter queue,
 distributed lock, provider message ID, `delivered_at`, `read_at`, click
-tracking, Web Push, subscription, service worker, or frontend notification flow
-exists. Future milestones can add Web Push behind the dispatcher contract and
-define retry and richer history semantics without moving eligibility logic into
-the delivery domain.
+tracking, service worker, browser permission flow, or frontend notification
+integration exists. Frontend permission, browser subscription creation, and
+service-worker handling belong to Milestone 6.4C.

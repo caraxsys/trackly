@@ -49,6 +49,10 @@ export const swaggerPlugin = fastifyPlugin(
             name: 'analytics',
             description: 'Authenticated analytics summary endpoints',
           },
+          {
+            name: 'push-subscriptions',
+            description: 'Authenticated browser push subscription management',
+          },
         ],
       },
     });

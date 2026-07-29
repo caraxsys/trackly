@@ -21,6 +21,7 @@ import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createNotificationDeliveryRepository } from '../../src/modules/notifications/notification-delivery.repository.js';
 import { mapEligibleReminderToOccurrence } from '../../src/modules/notifications/notification-occurrence.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
+import { createPushSubscriptionRepository } from '../../src/modules/push-subscriptions/push-subscription.repository.js';
 import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
 import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
 import { createReminderSchedulingRepository } from '../../src/modules/reminders/reminder-scheduling.repository.js';
@@ -35,6 +36,7 @@ import {
   habitSchedules,
   habits,
   notificationDeliveries,
+  pushSubscriptions,
   reminders,
   tasks,
   user,
@@ -220,11 +222,12 @@ describe('core database domain schema', () => {
           'account',
           'verification',
           'reminders',
-          'notification_deliveries'
+          'notification_deliveries',
+          'push_subscriptions'
         )
     `);
 
-    expect(result[0]?.table_count).toBe(14);
+    expect(result[0]?.table_count).toBe(15);
   });
 
   it('supports registration, login, persistent sessions, and logout', async () => {
@@ -2395,6 +2398,7 @@ describe('core database domain schema', () => {
       'noop',
     );
     if (!skippedClaim.claimed) throw new Error('Skip fixture was not claimed.');
+    await repository.markProcessing(skippedClaim.delivery.id);
     expect(
       (await repository.markSkipped(skippedClaim.delivery.id))?.status,
     ).toBe('skipped');
@@ -2431,6 +2435,117 @@ describe('core database domain schema', () => {
         'notification_deliveries_reminder_id_idx',
         'notification_deliveries_user_id_idx',
         'notification_deliveries_status_idx',
+      ]),
+    );
+  });
+
+  it('persists, protects, updates, and soft-deletes push subscriptions', async () => {
+    const ownerId = `push-owner-${randomUUID()}`;
+    const otherId = `push-other-${randomUUID()}`;
+    await database.insert(user).values([
+      {
+        id: ownerId,
+        name: 'Push Owner',
+        email: `${ownerId}@example.com`,
+        emailVerified: true,
+      },
+      {
+        id: otherId,
+        name: 'Push Other',
+        email: `${otherId}@example.com`,
+        emailVerified: true,
+      },
+    ]);
+    const repository = createPushSubscriptionRepository(database);
+    const endpoint = 'https://push.example.test/subscription/owner';
+    const first = await repository.createOrReactivate(ownerId, {
+      endpoint,
+      p256dh: 'p256dh-key-material',
+      auth: 'auth-key-material',
+      userAgent: 'Test Browser',
+    });
+    expect(first.status).toBe('created');
+    if (first.status !== 'created')
+      throw new Error('Subscription not created.');
+
+    const [stored] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(stored).toMatchObject({
+      userId: ownerId,
+      endpoint,
+      isEnabled: true,
+      failureCount: 0,
+      deletedAt: null,
+    });
+    expect(
+      await repository.createOrReactivate(otherId, {
+        endpoint,
+        p256dh: 'different-p256dh-key',
+        auth: 'different-auth-key',
+      }),
+    ).toEqual({ status: 'owned_by_another_user' });
+
+    const second = await repository.createOrReactivate(ownerId, {
+      endpoint: 'https://push.example.test/subscription/second',
+      p256dh: 'second-p256dh-key',
+      auth: 'second-auth-key',
+    });
+    expect(second.status).toBe('created');
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
+
+    await repository.recordFailure(first.subscription.id);
+    const [failed] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(failed?.failureCount).toBe(1);
+    expect(failed?.lastFailureAt).toBeInstanceOf(Date);
+
+    await repository.recordSuccess(first.subscription.id);
+    const [successful] = await database
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.id, first.subscription.id));
+    expect(successful?.failureCount).toBe(0);
+    expect(successful?.lastSuccessAt).toBeInstanceOf(Date);
+
+    await repository.disableOwned(ownerId, endpoint);
+    await expect(
+      repository.disableOwned(ownerId, endpoint),
+    ).resolves.toBeNull();
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(1);
+    const reactivated = await repository.createOrReactivate(ownerId, {
+      endpoint,
+      p256dh: 'reactivated-p256dh-key',
+      auth: 'reactivated-auth-key',
+    });
+    expect(reactivated.status).toBe('updated');
+    expect(await repository.findActiveForDelivery(ownerId)).toHaveLength(2);
+
+    await expectPostgresError(
+      database.insert(pushSubscriptions).values({
+        userId: otherId,
+        endpoint,
+        p256dh: 'conflicting-p256dh',
+        auth: 'conflicting-auth',
+      }),
+      '23505',
+    );
+
+    const indexes = await database.execute<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'push_subscriptions'
+    `);
+    expect(indexes.map(({ indexname }) => indexname)).toEqual(
+      expect.arrayContaining([
+        'push_subscriptions_active_endpoint_uidx',
+        'push_subscriptions_user_id_idx',
+        'push_subscriptions_enabled_active_idx',
+        'push_subscriptions_endpoint_idx',
       ]),
     );
   });

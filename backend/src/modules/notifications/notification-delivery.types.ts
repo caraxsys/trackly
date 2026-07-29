@@ -2,7 +2,7 @@ import type { EligibleReminder } from '../reminders/reminder-scheduling.types.js
 
 export type NotificationDeliveryStatus =
   'pending' | 'processing' | 'delivered' | 'failed' | 'skipped';
-export type NotificationProviderName = 'noop';
+export type NotificationProviderName = 'noop' | 'web_push';
 
 export interface NotificationOccurrence {
   occurrenceKey: string;
@@ -25,11 +25,14 @@ export interface NotificationDeliveryRecord extends NotificationOccurrence {
 export interface NotificationProviderInput extends NotificationOccurrence {
   body: string;
   deliveryId: string;
+  habitId: string;
   title: string;
 }
 
 export type NotificationProviderResult =
-  { success: true } | { success: false; errorCode: string };
+  | { status: 'delivered' }
+  | { status: 'failed'; errorCode: string }
+  | { status: 'skipped'; reasonCode: string };
 
 export interface NotificationProvider {
   readonly name: NotificationProviderName;

@@ -7,8 +7,10 @@ import { habitCheckIns } from './habit-check-ins.js';
 import { habitSchedules } from './habit-schedules.js';
 import { habits } from './habits.js';
 import { notificationDeliveries } from './notification-deliveries.js';
+import { pushSubscriptions } from './push-subscriptions.js';
 import { reminders } from './reminders.js';
 import { tasks } from './tasks.js';
+import { user } from './auth.js';
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
   habits: many(habits),
@@ -31,6 +33,16 @@ export const notificationDeliveriesRelations = relations(
     reminder: one(reminders, {
       fields: [notificationDeliveries.reminderId],
       references: [reminders.id],
+    }),
+  }),
+);
+
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [pushSubscriptions.userId],
+      references: [user.id],
     }),
   }),
 );

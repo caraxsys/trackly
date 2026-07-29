@@ -91,7 +91,7 @@ export function createNotificationDeliveryRepository(database: Database) {
       transition(id, 'pending', 'processing', true),
     markDelivered: (id: string) => transition(id, 'processing', 'delivered'),
     markFailed: (id: string) => transition(id, 'processing', 'failed'),
-    markSkipped: (id: string) => transition(id, 'pending', 'skipped'),
+    markSkipped: (id: string) => transition(id, 'processing', 'skipped'),
   };
 }
 

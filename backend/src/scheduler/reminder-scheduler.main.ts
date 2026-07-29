@@ -12,6 +12,9 @@ import { createNotificationDeliveryRepository } from '../modules/notifications/n
 import { createNotificationDeliveryCoordinator } from '../modules/notifications/notification-delivery.coordinator.js';
 import { createNotificationDispatcher } from '../modules/notifications/notification-dispatcher.js';
 import { NoopNotificationProvider } from '../modules/notifications/notification-provider.js';
+import { WebPushNotificationProvider } from '../modules/notifications/web-push.provider.js';
+import { createPushSubscriptionRepository } from '../modules/push-subscriptions/push-subscription.repository.js';
+import { environment } from '../config/environment.js';
 import { createReminderSchedulerLoop } from './reminder-scheduler.loop.js';
 import {
   createReminderSchedulerRunner,
@@ -26,12 +29,30 @@ export async function runReminderSchedulerProcess(mode: ReminderSchedulerMode) {
   const service = createReminderEligibilityService(
     createReminderSchedulingRepository(database),
   );
+  const noopProvider = new NoopNotificationProvider(logger);
+  const hasWebPushConfiguration = Boolean(
+    environment.WEB_PUSH_VAPID_PUBLIC_KEY &&
+    environment.WEB_PUSH_VAPID_PRIVATE_KEY &&
+    environment.WEB_PUSH_SUBJECT,
+  );
+  const webPushProvider = hasWebPushConfiguration
+    ? new WebPushNotificationProvider(
+        createPushSubscriptionRepository(database),
+        {
+          publicKey: environment.WEB_PUSH_VAPID_PUBLIC_KEY!,
+          privateKey: environment.WEB_PUSH_VAPID_PRIVATE_KEY!,
+          subject: environment.WEB_PUSH_SUBJECT!,
+        },
+        logger,
+      )
+    : null;
+  const providers = webPushProvider
+    ? [noopProvider, webPushProvider]
+    : [noopProvider];
   const coordinator = createNotificationDeliveryCoordinator({
     repository: createNotificationDeliveryRepository(database),
-    dispatcher: createNotificationDispatcher([
-      new NoopNotificationProvider(logger),
-    ]),
-    provider: 'noop',
+    dispatcher: createNotificationDispatcher(providers),
+    provider: webPushProvider ? 'web_push' : 'noop',
     logger,
   });
   const runner = createReminderSchedulerRunner({

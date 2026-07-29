@@ -61,10 +61,34 @@ export function createNotificationDeliveryCoordinator({
         const providerResult = await dispatcher.dispatch(provider, {
           ...occurrence,
           deliveryId: processing.id,
+          habitId: eligible.habitId,
           title: 'Trackly reminder',
           body: 'A scheduled Habit is ready for your attention.',
         });
-        if (!providerResult.success) {
+        if (providerResult.status === 'skipped') {
+          const skipped = await repository.markSkipped(processing.id);
+          if (!skipped) {
+            throw new Error(
+              'Notification delivery could not be marked skipped.',
+            );
+          }
+          logger.info(
+            {
+              event: 'notification_delivery_skipped',
+              deliveryId: processing.id,
+              provider,
+              status: 'skipped',
+              reasonCode: providerResult.reasonCode,
+            },
+            'Notification provider skipped delivery',
+          );
+          return {
+            claimed: true,
+            deliveryId: processing.id,
+            status: 'skipped',
+          };
+        }
+        if (providerResult.status === 'failed') {
           const failed = await repository.markFailed(processing.id);
           if (!failed) {
             throw new Error(

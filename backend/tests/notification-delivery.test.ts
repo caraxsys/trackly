@@ -68,7 +68,7 @@ function logger() {
 
 function provider(
   result: Awaited<ReturnType<NotificationProvider['send']>> = {
-    success: true,
+    status: 'delivered',
   },
 ) {
   return {
@@ -124,12 +124,13 @@ describe('Notification providers and dispatcher', () => {
     const input: NotificationProviderInput = {
       ...mapEligibleReminderToOccurrence(eligible),
       deliveryId: 'delivery-1',
+      habitId: eligible.habitId,
       title: 'Title',
       body: 'Body',
     };
     const snapshot = structuredClone(input);
     expect(noop.name).toBe('noop');
-    await expect(noop.send(input)).resolves.toEqual({ success: true });
+    await expect(noop.send(input)).resolves.toEqual({ status: 'delivered' });
     expect(input).toEqual(snapshot);
     expect(JSON.stringify(log.debug.mock.calls)).not.toContain('Title');
     expect(JSON.stringify(log.debug.mock.calls)).not.toContain('Body');
@@ -141,14 +142,16 @@ describe('Notification providers and dispatcher', () => {
     await dispatcher.dispatch('noop', {
       ...mapEligibleReminderToOccurrence(eligible),
       deliveryId: 'delivery-1',
+      habitId: eligible.habitId,
       title: 'Title',
       body: 'Body',
     });
     expect(noop.send).toHaveBeenCalledOnce();
     expect(() =>
-      dispatcher.dispatch('web_push' as 'noop', {
+      dispatcher.dispatch('web_push', {
         ...mapEligibleReminderToOccurrence(eligible),
         deliveryId: 'delivery-1',
+        habitId: eligible.habitId,
         title: 'Title',
         body: 'Body',
       }),
@@ -212,7 +215,7 @@ describe('Notification delivery coordinator', () => {
     const context = setup(
       repository(),
       provider({
-        success: false,
+        status: 'failed',
         errorCode: 'NOOP_TEST_FAILURE',
       }),
     );
@@ -222,6 +225,23 @@ describe('Notification delivery coordinator', () => {
       status: 'failed',
     });
     expect(context.repository.markFailed).toHaveBeenCalledWith(delivery.id);
+  });
+
+  it('maps a provider skip to the durable skipped state', async () => {
+    const context = setup(
+      repository(),
+      provider({
+        status: 'skipped',
+        reasonCode: 'NO_ACTIVE_PUSH_SUBSCRIPTIONS',
+      }),
+    );
+    await expect(context.coordinator.process(eligible)).resolves.toEqual({
+      claimed: true,
+      deliveryId: delivery.id,
+      status: 'skipped',
+    });
+    expect(context.repository.markSkipped).toHaveBeenCalledWith(delivery.id);
+    expect(context.repository.markDelivered).not.toHaveBeenCalled();
   });
 
   it('never invokes a provider when the durable claim fails', async () => {

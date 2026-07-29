@@ -19,6 +19,6 @@ export class NoopNotificationProvider implements NotificationProvider {
       },
       'Noop notification provider completed',
     );
-    return Promise.resolve({ success: true });
+    return Promise.resolve({ status: 'delivered' });
   }
 }
