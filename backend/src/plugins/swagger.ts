@@ -2,8 +2,12 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import fastifyPlugin from 'fastify-plugin';
 
+import { environment } from '../config/environment.js';
+
 export const swaggerPlugin = fastifyPlugin(
   async (app) => {
+    if (!environment.EXPOSE_API_DOCS) return;
+
     await app.register(swagger, {
       openapi: {
         info: {

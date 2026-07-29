@@ -22,8 +22,11 @@ const optionalEnvironmentValue = <Schema extends z.ZodType>(schema: Schema) =>
       typeof value === 'string' && value.trim() === '' ? undefined : value,
     schema.optional(),
   );
+const booleanEnvironmentValue = z
+  .enum(['true', 'false'])
+  .transform((value) => value === 'true');
 
-const environmentSchema = z
+export const environmentSchema = z
   .object({
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
@@ -68,10 +71,29 @@ const environmentSchema = z
       .int()
       .nonnegative()
       .default(60 * 60 * 24),
+    AUTH_REQUIRE_EMAIL_VERIFICATION: booleanEnvironmentValue.optional(),
+    API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+    API_MUTATION_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
+    API_RATE_LIMIT_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60_000),
+    EXPOSE_API_DOCS: booleanEnvironmentValue.optional(),
+    ENABLE_DIAGNOSTICS: booleanEnvironmentValue.optional(),
+    TRUST_PROXY: booleanEnvironmentValue.default(false),
     WEB_PUSH_VAPID_PUBLIC_KEY: optionalEnvironmentValue(z.string().min(1)),
     WEB_PUSH_VAPID_PRIVATE_KEY: optionalEnvironmentValue(z.string().min(1)),
     WEB_PUSH_SUBJECT: optionalEnvironmentValue(vapidSubjectSchema),
   })
+  .transform((value) => ({
+    ...value,
+    AUTH_REQUIRE_EMAIL_VERIFICATION:
+      value.AUTH_REQUIRE_EMAIL_VERIFICATION ?? value.NODE_ENV === 'production',
+    EXPOSE_API_DOCS: value.EXPOSE_API_DOCS ?? value.NODE_ENV !== 'production',
+    ENABLE_DIAGNOSTICS:
+      value.ENABLE_DIAGNOSTICS ?? value.NODE_ENV !== 'production',
+  }))
   .superRefine((value, context) => {
     if (value.NODE_ENV !== 'production') return;
     for (const key of [
@@ -86,6 +108,56 @@ const environmentSchema = z
           message: `${key} is required in production.`,
         });
       }
+    }
+
+    if (new URL(value.BETTER_AUTH_URL).protocol !== 'https:') {
+      context.addIssue({
+        code: 'custom',
+        path: ['BETTER_AUTH_URL'],
+        message: 'BETTER_AUTH_URL must use HTTPS in production.',
+      });
+    }
+
+    for (const [key, origins] of [
+      ['CORS_ORIGINS', value.CORS_ORIGINS],
+      ['BETTER_AUTH_TRUSTED_ORIGINS', value.BETTER_AUTH_TRUSTED_ORIGINS],
+    ] as const) {
+      if (origins.some((origin) => new URL(origin).protocol !== 'https:')) {
+        context.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} must contain only HTTPS origins in production.`,
+        });
+      }
+    }
+
+    if (
+      /development|replace-with|test-only|change-before-production/i.test(
+        value.BETTER_AUTH_SECRET,
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['BETTER_AUTH_SECRET'],
+        message:
+          'BETTER_AUTH_SECRET must not use a known development placeholder in production.',
+      });
+    }
+
+    if (!value.AUTH_REQUIRE_EMAIL_VERIFICATION) {
+      context.addIssue({
+        code: 'custom',
+        path: ['AUTH_REQUIRE_EMAIL_VERIFICATION'],
+        message: 'AUTH_REQUIRE_EMAIL_VERIFICATION must be true in production.',
+      });
+    }
+
+    if (value.ENABLE_DIAGNOSTICS) {
+      context.addIssue({
+        code: 'custom',
+        path: ['ENABLE_DIAGNOSTICS'],
+        message: 'ENABLE_DIAGNOSTICS must be false in production.',
+      });
     }
   });
 

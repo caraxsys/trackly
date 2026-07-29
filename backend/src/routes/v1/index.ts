@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
+import { environment } from '../../config/environment.js';
 import { validateDiagnosticRequest } from '../../controllers/diagnostic.controller.js';
 import {
   errorResponseJsonSchema,
@@ -31,6 +32,8 @@ export async function v1Routes(app: FastifyInstance) {
   await app.register(preferenceRoutes);
   await app.register(reminderRoutes);
   await app.register(pushSubscriptionRoutes);
+
+  if (!environment.ENABLE_DIAGNOSTICS) return;
 
   app.post(
     '/diagnostics/validation',
