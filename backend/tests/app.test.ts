@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../src/app.js';
+import { loggerOptions } from '../src/config/logger.js';
 import { AppError } from '../src/errors/app-error.js';
 import { ErrorCode } from '../src/errors/error-codes.js';
 
@@ -24,6 +25,29 @@ describe('backend foundation', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('redacts authentication and Web Push secrets from structured logs', () => {
+    const redaction = loggerOptions().redact;
+    if (
+      !redaction ||
+      typeof redaction !== 'object' ||
+      !('paths' in redaction) ||
+      !Array.isArray(redaction.paths)
+    ) {
+      throw new Error('Structured log redaction must define paths.');
+    }
+    for (const path of [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'req.body.endpoint',
+      'req.body.keys.p256dh',
+      'req.body.keys.auth',
+      '*.privateKey',
+    ]) {
+      expect(redaction.paths).toContain(path);
+    }
+    expect(redaction.censor).toBe('[REDACTED]');
   });
 
   it('returns process health without querying PostgreSQL', async () => {
@@ -72,6 +96,23 @@ describe('backend foundation', () => {
         message: 'Route GET /missing was not found.',
       },
     });
+  });
+
+  it('does not reflect an unknown route query string in the 404 response', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/missing?token=sensitive-value',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Route GET /missing was not found.',
+      },
+    });
+    expect(response.body).not.toContain('sensitive-value');
   });
 
   it('formats application errors consistently', async () => {

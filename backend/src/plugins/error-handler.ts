@@ -20,6 +20,10 @@ function fastifyValidationDetails(error: FastifyError) {
   }));
 }
 
+function requestPath(url: string) {
+  return url.split('?', 1)[0] ?? '/';
+}
+
 export const errorHandlerPlugin = fastifyPlugin(
   (app) => {
     app.setNotFoundHandler((request, reply) => {
@@ -28,7 +32,7 @@ export const errorHandlerPlugin = fastifyPlugin(
         .send(
           errorResponse(
             ErrorCode.NotFound,
-            `Route ${request.method} ${request.url} was not found.`,
+            `Route ${request.method} ${requestPath(request.url)} was not found.`,
           ),
         );
     });
