@@ -158,6 +158,33 @@ describe('backend foundation', () => {
     });
   });
 
+  it('validates and protects reminder routes', async () => {
+    const habitId = '00000000-0000-4000-8000-000000000001';
+    const [unauthenticated, invalid] = await Promise.all([
+      app.inject({
+        method: 'GET',
+        url: `/api/v1/habits/${habitId}/reminders`,
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/habits/${habitId}/reminders`,
+        payload: { timeOfDay: '24:00' },
+      }),
+    ]);
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(invalid.statusCode).toBe(400);
+
+    const paths = app.swagger().paths;
+    expect(paths?.['/api/v1/habits/{habitId}/reminders']?.get).toBeDefined();
+    expect(paths?.['/api/v1/habits/{habitId}/reminders']?.post).toBeDefined();
+    expect(
+      paths?.['/api/v1/habits/{habitId}/reminders/{reminderId}']?.patch,
+    ).toBeDefined();
+    expect(
+      paths?.['/api/v1/habits/{habitId}/reminders/{reminderId}']?.delete,
+    ).toBeDefined();
+  });
+
   it('validates habit streak identifiers and requires authentication', async () => {
     const [invalid, unauthenticated] = await Promise.all([
       app.inject({
@@ -463,9 +490,9 @@ describe('backend foundation', () => {
     const habitPaths = app.swagger().paths;
     expect(habitPaths?.['/api/v1/habits/{id}/archive']?.post).toBeDefined();
     expect(habitPaths?.['/api/v1/habits/{id}/restore']?.post).toBeDefined();
-    expect(
-      JSON.stringify(habitPaths?.['/api/v1/habits']?.get),
-    ).toContain('archived');
+    expect(JSON.stringify(habitPaths?.['/api/v1/habits']?.get)).toContain(
+      'archived',
+    );
   });
 
   it('rejects malformed habit mutation payloads', async () => {

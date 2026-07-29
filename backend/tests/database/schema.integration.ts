@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres, { type Sql } from 'postgres';
@@ -19,6 +19,8 @@ import { createHabitStreakQueryRepository } from '../../src/modules/habits/habit
 import { createHabitStreakQueryService } from '../../src/modules/habits/habit-streak.service.js';
 import { createHabitService } from '../../src/modules/habits/habit.service.js';
 import { createPreferenceRepository } from '../../src/modules/preferences/preference.repository.js';
+import { createReminderRepository } from '../../src/modules/reminders/reminder.repository.js';
+import { createReminderService } from '../../src/modules/reminders/reminder.service.js';
 import { createTaskRepository } from '../../src/modules/tasks/task.repository.js';
 import { createTodayService } from '../../src/modules/today/today.service.js';
 import {
@@ -28,6 +30,7 @@ import {
   habitCheckIns,
   habitSchedules,
   habits,
+  reminders,
   tasks,
   user,
   userPreferences,
@@ -89,6 +92,13 @@ function analyticsService() {
     analyticsRepository: createAnalyticsQueryRepository(database),
     preferenceRepository: createPreferenceRepository(database),
   });
+}
+
+function reminderService() {
+  return createReminderService(
+    createReminderRepository(database),
+    createPreferenceRepository(database),
+  );
 }
 
 async function authRequest(
@@ -198,10 +208,11 @@ describe('core database domain schema', () => {
           'session',
           'account',
           'verification'
+          ,'reminders'
         )
     `);
 
-    expect(result[0]?.table_count).toBe(12);
+    expect(result[0]?.table_count).toBe(13);
   });
 
   it('supports registration, login, persistent sessions, and logout', async () => {
@@ -1268,21 +1279,21 @@ describe('core database domain schema', () => {
     };
     const [today, all, inactive, archived, searched, secondPage] =
       await Promise.all([
-      habitService().list({ userId }, base),
-      habitService().list(
-        { userId },
-        { ...base, view: 'all', sort: 'name', order: 'desc' },
-      ),
-      habitService().list({ userId }, { ...base, view: 'inactive' }),
-      habitService().list({ userId }, { ...base, view: 'archived' }),
-      habitService().list(
-        { userId },
-        { ...base, view: 'all', search: '  reading  ' },
-      ),
-      habitService().list(
-        { userId },
-        { ...base, view: 'all', page: 2, limit: 2 },
-      ),
+        habitService().list({ userId }, base),
+        habitService().list(
+          { userId },
+          { ...base, view: 'all', sort: 'name', order: 'desc' },
+        ),
+        habitService().list({ userId }, { ...base, view: 'inactive' }),
+        habitService().list({ userId }, { ...base, view: 'archived' }),
+        habitService().list(
+          { userId },
+          { ...base, view: 'all', search: '  reading  ' },
+        ),
+        habitService().list(
+          { userId },
+          { ...base, view: 'all', page: 2, limit: 2 },
+        ),
       ]);
 
     expect(today.items.map((item) => item.name)).toEqual([
@@ -2055,5 +2066,120 @@ describe('core database domain schema', () => {
         and(eq(habits.userId, userId), eq(habits.name, 'Rollback habit')),
       ),
     ).toBe(0);
+  });
+
+  it('persists ownership-scoped reminders with archive and soft-delete semantics', async () => {
+    const userId = await createTestUser();
+    const otherUserId = await createTestUser();
+    const habitId = await insertHabit(userId);
+    const otherHabitId = await insertHabit(otherUserId);
+    await database
+      .insert(userPreferences)
+      .values({ userId, timezone: 'Asia/Jakarta' });
+    const service = reminderService();
+
+    const created = await service.create(userId, habitId, {
+      timeOfDay: '08:30',
+      isEnabled: true,
+    });
+    await service.create(userId, habitId, {
+      timeOfDay: '07:15',
+      isEnabled: false,
+    });
+    await database
+      .update(habits)
+      .set({ isActive: false })
+      .where(eq(habits.id, habitId));
+
+    await expect(service.list(userId, habitId)).resolves.toMatchObject({
+      timezone: 'Asia/Jakarta',
+      items: [
+        { timeOfDay: '07:15', isEnabled: false },
+        { timeOfDay: '08:30', isEnabled: true },
+      ],
+    });
+    await expect(
+      service.update(userId, habitId, created.id, { isEnabled: false }),
+    ).resolves.toMatchObject({ isEnabled: false });
+    await expect(service.list(otherUserId, habitId)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(
+      service.update(userId, otherHabitId, created.id, { isEnabled: true }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    await expect(
+      service.create(userId, habitId, {
+        timeOfDay: '08:30',
+        isEnabled: true,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+
+    await service.softDelete(userId, habitId, created.id);
+    await expect(
+      service.create(userId, habitId, {
+        timeOfDay: '08:30',
+        isEnabled: true,
+      }),
+    ).resolves.toMatchObject({ timeOfDay: '08:30' });
+    expect(
+      await database.$count(
+        reminders,
+        and(eq(reminders.userId, userId), eq(reminders.habitId, habitId)),
+      ),
+    ).toBe(3);
+
+    await database
+      .update(habits)
+      .set({ deletedAt: new Date() })
+      .where(eq(habits.id, habitId));
+    await expect(service.list(userId, habitId)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('enforces Reminder foreign keys and concurrent active uniqueness', async () => {
+    const userId = await createTestUser();
+    const habitId = await insertHabit(userId);
+    const service = reminderService();
+
+    await expectPostgresError(
+      database.insert(reminders).values({
+        userId: 'missing-user',
+        habitId,
+        timeOfDay: '09:00',
+      }),
+      '23503',
+    );
+
+    const results = await Promise.allSettled([
+      service.create(userId, habitId, {
+        timeOfDay: '10:00',
+        isEnabled: true,
+      }),
+      service.create(userId, habitId, {
+        timeOfDay: '10:00',
+        isEnabled: true,
+      }),
+    ]);
+    expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    expect(results.filter(({ status }) => status === 'rejected')).toHaveLength(
+      1,
+    );
+    expect(results.find(({ status }) => status === 'rejected')).toMatchObject({
+      reason: { statusCode: 409, code: 'CONFLICT' },
+    });
+    expect(
+      await database.$count(
+        reminders,
+        and(
+          eq(reminders.userId, userId),
+          eq(reminders.habitId, habitId),
+          isNull(reminders.deletedAt),
+        ),
+      ),
+    ).toBe(1);
   });
 });

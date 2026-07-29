@@ -6,12 +6,21 @@ import { goals } from './goals.js';
 import { habitCheckIns } from './habit-check-ins.js';
 import { habitSchedules } from './habit-schedules.js';
 import { habits } from './habits.js';
+import { reminders } from './reminders.js';
 import { tasks } from './tasks.js';
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
   habits: many(habits),
   tasks: many(tasks),
   goals: many(goals),
+  reminders: many(reminders),
+}));
+
+export const remindersRelations = relations(reminders, ({ one }) => ({
+  habit: one(habits, {
+    fields: [reminders.habitId],
+    references: [habits.id],
+  }),
 }));
 
 export const habitsRelations = relations(habits, ({ one, many }) => ({

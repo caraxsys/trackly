@@ -18,6 +18,17 @@ export function formatPreferenceTime(format: TimeFormat) {
   return format === '12h' ? '1:45 PM' : '13:45';
 }
 
+export function formatTimeOfDay(value: string, format: TimeFormat) {
+  const [hourValue, minute = '00'] = value.split(':');
+  const hour = Number(hourValue);
+  if (format === '24h') {
+    return `${String(hour).padStart(2, '0')}:${minute}`;
+  }
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${period}`;
+}
+
 export function preferencePreview(preferences: UserPreferences) {
   return {
     date: formatPreferenceDate(preferences.dateFormat),

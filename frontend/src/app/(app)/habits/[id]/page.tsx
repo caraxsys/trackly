@@ -8,6 +8,14 @@ import {
   getServerHabitStreak,
   HabitServerError,
 } from '@/services/habit-server-service';
+import {
+  getServerPreferences,
+  PreferenceServerError,
+} from '@/services/preference-server-service';
+import {
+  getServerReminders,
+  ReminderServerError,
+} from '@/services/reminder-server-service';
 
 export const metadata: Metadata = { title: 'Habit details' };
 export const dynamic = 'force-dynamic';
@@ -25,18 +33,28 @@ export default async function HabitDetailPage({
   const { id } = await params;
   let habit;
   let streak;
+  let reminders;
+  let preferences;
 
   try {
-    [habit, streak] = await Promise.all([
+    [habit, streak, reminders, preferences] = await Promise.all([
       getServerHabit(id),
       getServerHabitStreak(id),
+      getServerReminders(id),
+      getServerPreferences(),
     ]);
   } catch (error) {
-    if (error instanceof HabitServerError && error.status === 401) {
+    if (
+      (error instanceof HabitServerError ||
+        error instanceof ReminderServerError ||
+        error instanceof PreferenceServerError) &&
+      error.status === 401
+    ) {
       redirect('/login');
     }
     if (
-      error instanceof HabitServerError &&
+      (error instanceof HabitServerError ||
+        error instanceof ReminderServerError) &&
       (error.status === 400 || error.status === 404)
     ) {
       notFound();
@@ -53,8 +71,10 @@ export default async function HabitDetailPage({
   return (
     <HabitDetail
       habit={habit}
+      reminders={reminders}
       streak={streak}
       success={success}
+      timeFormat={preferences.timeFormat}
       timezone={habit.timezone}
     />
   );
