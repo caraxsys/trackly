@@ -123,6 +123,7 @@ describe('habit detail UI', () => {
     render(
       <HabitDetail
         habit={detail}
+        reminders={{ timezone: 'Asia/Jakarta', items: [] }}
         streak={{
           habitId: detail.id,
           currentStreak: 3,
@@ -130,6 +131,7 @@ describe('habit detail UI', () => {
           lastCompletedDate: '2026-07-26',
         }}
         timezone="Asia/Jakarta"
+        timeFormat="24h"
       />,
     );
 
@@ -148,9 +150,7 @@ describe('habit detail UI', () => {
       'href',
       `/habits/${detail.id}/edit`,
     );
-    expect(
-      screen.getByRole('button', { name: 'Archive' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(
       screen.getByRole('button', {

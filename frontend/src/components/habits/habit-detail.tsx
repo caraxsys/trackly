@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { StatusBadge } from '@/components/common/status-badge';
 import { HabitCheckInControl } from '@/components/habits/habit-check-in-control';
 import { HabitLifecycleActions } from '@/components/habits/habit-lifecycle-actions';
+import { ReminderManager } from '@/components/reminders/reminder-manager';
 import { CategoryBadge } from '@/components/today/category-badge';
 import {
   formatDateRange,
@@ -16,16 +17,22 @@ import type {
   HabitDetail as HabitDetailData,
   HabitStreak,
 } from '@/types/habit';
+import type { TimeFormat } from '@/types/preference';
+import type { ReminderListData } from '@/types/reminder';
 
 export function HabitDetail({
   habit,
   streak,
   timezone,
+  reminders,
+  timeFormat,
   success,
 }: {
   habit: HabitDetailData;
   streak: HabitStreak;
   timezone: string;
+  reminders: ReminderListData;
+  timeFormat: TimeFormat;
   success?: 'created' | 'updated';
 }) {
   const fields = [
@@ -166,6 +173,13 @@ export function HabitDetail({
           </div>
         </dl>
       </section>
+      <ReminderManager
+        habitId={habit.id}
+        initialItems={reminders.items}
+        isHabitActive={habit.isActive}
+        timeFormat={timeFormat}
+        timezone={reminders.timezone}
+      />
     </div>
   );
 }
