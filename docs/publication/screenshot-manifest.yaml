@@ -1,0 +1,129 @@
+version: 1
+base_path: ../assets/screenshots
+screenshots:
+  - id: login
+    path: ../assets/screenshots/desktop/01-login.png
+    feature: Authentication
+    chapter: 7
+    caption: Figure 7.1 — Trackly Sign-In Experience
+    viewport: 1440x900
+    intended_width: 88%
+    priority: high
+    alt: Trackly sign-in page with email and password fields in a centered authentication layout.
+  - id: registration
+    path: ../assets/screenshots/desktop/02-register.png
+    feature: Authentication
+    chapter: 7
+    caption: Figure 7.2 — Account Registration
+    viewport: 1440x900
+    intended_width: 88%
+    priority: high
+    alt: Trackly registration page with name, email, password, and password-confirmation fields.
+  - id: today-dashboard
+    path: ../assets/screenshots/desktop/03-today-dashboard.png
+    feature: Today
+    chapter: 10
+    caption: Figure 10.1 — Today Dashboard with Daily Progress
+    viewport: 1440x1549
+    intended_width: 92%
+    priority: critical
+    alt: Trackly Today dashboard showing daily progress, four scheduled habits, task groups, and active goals.
+  - id: habits-list
+    path: ../assets/screenshots/desktop/04-habits-list.png
+    feature: Habits
+    chapter: 11
+    caption: Figure 11.1 — Habit Collection and URL-Based Controls
+    viewport: 1440x1047
+    intended_width: 92%
+    priority: critical
+    alt: Trackly Habits page showing the habit collection, view filters, search, sorting, and pagination controls.
+  - id: habit-create
+    path: ../assets/screenshots/desktop/05-habit-create.png
+    feature: Habits
+    chapter: 11
+    caption: Figure 11.2 — Habit Creation Form
+    viewport: 1440x1104
+    intended_width: 88%
+    priority: high
+    alt: New Habit form with identity, category, frequency, target, date range, and active-state controls.
+  - id: habit-detail
+    path: ../assets/screenshots/desktop/06-habit-detail.png
+    feature: Habits
+    chapter: 11
+    caption: Figure 11.3 — Habit Detail, Check-In, and Streak
+    viewport: 1440x1057
+    intended_width: 92%
+    priority: critical
+    alt: Morning Run habit detail showing routine metadata, current-day check-in, streak values, and reminders.
+  - id: goals
+    path: ../assets/screenshots/desktop/07-goals.png
+    feature: Goals
+    chapter: 12
+    caption: Figure 12.1 — Goal Dashboard and Derived Progress
+    viewport: 1440x1194
+    intended_width: 92%
+    priority: high
+    alt: Goals dashboard showing summary cards, priority groupings, and two goals with accumulated progress.
+  - id: reminders
+    path: ../assets/screenshots/desktop/08-reminders.png
+    feature: Reminders
+    chapter: 15
+    caption: Figure 15.1 — Reminder Management on Habit Detail
+    viewport: 1088x234
+    intended_width: 88%
+    priority: high
+    alt: Reminder section for a habit showing the configured timezone, an enabled reminder, and management actions.
+  - id: analytics-overview
+    path: ../assets/screenshots/desktop/09-analytics-overview.png
+    feature: Analytics
+    chapter: 14
+    caption: Figure 14.1 — Analytics Summary and Daily Trends
+    viewport: 1440x900
+    intended_width: 92%
+    priority: critical
+    alt: Analytics dashboard showing period controls, summary metrics, and historical trend metrics.
+  - id: analytics-heatmap
+    path: ../assets/screenshots/desktop/10-analytics-heatmap.png
+    feature: Analytics
+    chapter: 14
+    caption: Figure 14.2 — Contribution Heatmap
+    viewport: 1088x442
+    intended_width: 92%
+    priority: high
+    alt: Ninety-day contribution heatmap with active-day totals, completion metrics, calendar cells, and legend.
+  - id: preferences
+    path: ../assets/screenshots/desktop/11-preferences.png
+    feature: Preferences
+    chapter: 13
+    caption: Figure 13.1 — Preferences and Device Notification Settings
+    viewport: 1440x900
+    intended_width: 90%
+    priority: high
+    alt: Trackly Preferences page with timezone, formatting, theme, preview, and notification settings.
+  - id: mobile-today
+    path: ../assets/screenshots/mobile/01-mobile-today.png
+    feature: Today
+    chapter: 10
+    caption: Figure 10.2 — Today Dashboard on Mobile
+    viewport: 390x844
+    intended_width: 40%
+    priority: high
+    alt: Mobile Trackly Today dashboard with daily progress and the beginning of the habit list.
+  - id: mobile-habits
+    path: ../assets/screenshots/mobile/02-mobile-habits.png
+    feature: Habits
+    chapter: 11
+    caption: Figure 11.4 — Habit Collection on Mobile
+    viewport: 390x844
+    intended_width: 40%
+    priority: medium
+    alt: Mobile Trackly Habits collection with compact filtering controls and habit cards.
+  - id: mobile-navigation
+    path: ../assets/screenshots/mobile/03-mobile-navigation.png
+    feature: Navigation
+    chapter: 5
+    caption: Figure 5.1 — Mobile Primary Navigation
+    viewport: 390x70
+    intended_width: 42%
+    priority: medium
+    alt: Trackly mobile navigation bar with Today, Habits, Tasks, Goals, and Analytics destinations.

@@ -11,6 +11,18 @@
     "test:backend": "corepack pnpm --filter @trackly/backend test",
     "test:frontend": "corepack pnpm --filter @trackly/frontend test",
     "test:database": "corepack pnpm --filter @trackly/backend test:database",
+    "docs:screenshots": "playwright test --config=playwright.docs.config.ts",
+    "docs:screenshots:lint": "eslint --config eslint.docs.config.mjs playwright.docs.config.ts scripts/docs-screenshots",
+    "docs:screenshots:typecheck": "tsc --noEmit --project scripts/docs-screenshots/tsconfig.json",
+    "docs:publish": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts publish",
+    "docs:publish:validate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts validate",
+    "docs:publish:clean": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts clean",
+    "docs:render-diagrams": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts diagrams",
+    "docs:build:pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts pdf",
+    "docs:build:docx": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts docx",
+    "docs:build:api-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=DEP0190 --experimental-strip-types scripts/docs-publication/cli.ts api-pdf",
+    "docs:publish:lint": "eslint --config scripts/docs-publication/eslint.config.mjs \"scripts/docs-publication/**/*.ts\"",
+    "docs:publish:typecheck": "tsc --noEmit --project scripts/docs-publication/tsconfig.json",
     "validate": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:backend && corepack pnpm test:frontend && corepack pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -23,7 +35,16 @@
     "audit:security": "corepack pnpm audit --prod --audit-level high"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@mermaid-js/mermaid-cli": "11.16.0",
+    "@playwright/test": "^1.62.0",
+    "@types/node": "^24.13.3",
+    "eslint": "^9.39.5",
+    "postgres": "^3.4.9",
     "prettier": "^3.6.2",
-    "prettier-plugin-tailwindcss": "^0.6.14"
+    "prettier-plugin-tailwindcss": "^0.6.14",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "yaml": "2.9.0"
   }
 }

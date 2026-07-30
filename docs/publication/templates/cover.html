@@ -1,0 +1,108 @@
+<section class="publication-cover" aria-labelledby="publication-title">
+  <div class="cover-mark" aria-hidden="true">
+    <span></span><span></span><span></span>
+  </div>
+  <p class="cover-brand">Trackly</p>
+  <h1 id="publication-title">Technical Documentation</h1>
+  <p class="cover-subtitle">
+    Architecture, Development, Features, and Operations
+  </p>
+  <div class="cover-rule"></div>
+  <dl class="cover-details">
+    <div>
+      <dt>Version</dt>
+      <dd>1.0</dd>
+    </div>
+    <div>
+      <dt>Author</dt>
+      <dd>Fahmy Akhmad Firdaus</dd>
+    </div>
+    <div>
+      <dt>Year</dt>
+      <dd>2026</dd>
+    </div>
+  </dl>
+</section>
+
+<style>
+  .publication-cover {
+    box-sizing: border-box;
+    display: flex;
+    min-height: 255mm;
+    flex-direction: column;
+    justify-content: center;
+    padding: 18mm;
+    break-after: page;
+    color: #17151f;
+    background:
+      radial-gradient(circle at 86% 12%, #eee7f8 0 24mm, transparent 24.5mm),
+      linear-gradient(135deg, #ffffff 0 72%, #f6f2fa 72% 100%);
+  }
+  .cover-mark {
+    display: flex;
+    gap: 2mm;
+    margin-bottom: 8mm;
+  }
+  .cover-mark span {
+    width: 3mm;
+    border-radius: 2mm;
+    background: #6d4ab0;
+  }
+  .cover-mark span:nth-child(1) {
+    height: 8mm;
+  }
+  .cover-mark span:nth-child(2) {
+    height: 13mm;
+  }
+  .cover-mark span:nth-child(3) {
+    height: 18mm;
+  }
+  .cover-brand {
+    margin: 0 0 5mm;
+    color: #6d4ab0;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .publication-cover h1 {
+    max-width: 145mm;
+    margin: 0;
+    font-size: 38pt;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+  }
+  .cover-subtitle {
+    max-width: 135mm;
+    margin: 7mm 0 0;
+    color: #625d6f;
+    font-size: 17pt;
+    line-height: 1.4;
+  }
+  .cover-rule {
+    width: 25mm;
+    height: 1.2mm;
+    margin: 16mm 0 8mm;
+    background: #6d4ab0;
+  }
+  .cover-details {
+    display: grid;
+    max-width: 115mm;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8mm;
+  }
+  .cover-details div {
+    display: block;
+  }
+  .cover-details dt {
+    color: #77717f;
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .cover-details dd {
+    margin: 1mm 0 0;
+    font-size: 11pt;
+    font-weight: 600;
+  }
+</style>
