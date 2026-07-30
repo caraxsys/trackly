@@ -1,0 +1,71 @@
+version: 1
+rendering:
+  source_format: mermaid
+  target_format: svg
+  background: transparent
+  theme: neutral
+figures:
+  - id: system-context
+    source_document: ../01-design/architecture-diagram.md
+    source_block_index: 0
+    mermaid_type: flowchart
+    chapter: 2
+    caption: Figure 2.1 — Trackly System Context
+    rendering_target: generated/figures/system-context.svg
+    priority: critical
+  - id: request-lifecycle
+    source_document: ../05-reference/sequence-diagrams.md
+    source_block_index: 0
+    mermaid_type: sequenceDiagram
+    chapter: 6
+    caption: Figure 6.1 — Authenticated Request Lifecycle
+    rendering_target: generated/figures/request-lifecycle.svg
+    priority: critical
+  - id: authentication-sequence
+    source_document: ../01-design/authentication-flow.md
+    source_block_index: 1
+    mermaid_type: sequenceDiagram
+    chapter: 7
+    caption: Figure 7.3 — Email and Password Authentication Sequence
+    rendering_target: generated/figures/authentication-sequence.svg
+    priority: high
+  - id: database-erd
+    source_document: ../05-reference/database-schema.md
+    source_block_index: 0
+    mermaid_type: erDiagram
+    chapter: 8
+    caption: Figure 8.1 — Trackly Entity Relationships
+    rendering_target: generated/figures/database-erd.svg
+    priority: critical
+  - id: habit-check-in
+    source_document: ../05-reference/sequence-diagrams.md
+    source_block_index: 2
+    mermaid_type: sequenceDiagram
+    chapter: 11
+    caption: Figure 11.5 — Absolute Habit Check-In Flow
+    rendering_target: generated/figures/habit-check-in.svg
+    priority: high
+  - id: reminder-delivery
+    source_document: ../05-reference/sequence-diagrams.md
+    source_block_index: 4
+    mermaid_type: sequenceDiagram
+    chapter: 15
+    caption: Figure 15.2 — Reminder Scheduling and Notification Delivery
+    rendering_target: generated/figures/reminder-delivery.svg
+    priority: critical
+  - id: deployment-topology
+    source_document: ../04-deployment/production.md
+    source_block_index: 0
+    mermaid_type: flowchart
+    chapter: 21
+    caption: Figure 21.1 — Supported Deployment Topology and External Boundaries
+    rendering_target: generated/figures/deployment-topology.svg
+    priority: critical
+  - id: container-startup
+    source_document: ../04-deployment/production.md
+    source_block_index: 1
+    mermaid_type: flowchart
+    chapter: 21
+    caption: Figure 21.2 — Container Startup Dependencies
+    rendering_target: generated/figures/container-startup.svg
+    priority: high

@@ -1,0 +1,43 @@
+---
+title: Trackly Technical Documentation
+subtitle: Architecture, Development, Features, and Operations
+author:
+  - Fahmy Akhmad Firdaus
+version: '1.0'
+year: 2026
+date: '2026'
+lang: en-US
+document-type: technical-book
+subject: Trackly software architecture, engineering, features, and operations
+description: >-
+  A curated technical reference for the Trackly personal productivity
+  platform, covering architecture, implementation conventions, product
+  behavior, development, deployment, and operations.
+keywords:
+  - Trackly
+  - Next.js
+  - Fastify
+  - PostgreSQL
+  - Drizzle ORM
+  - software architecture
+  - technical documentation
+page-format: A4
+page-orientation: portrait
+toc: true
+toc-depth: 3
+number-sections: true
+syntax-highlighting: true
+syntax-theme: restrained-light
+link-citations: true
+link-behavior:
+  internal: clickable
+  external: clickable
+  print-url: false
+cover-template: templates/cover.html
+chapter-divider-template: templates/chapter-divider.html
+stylesheet:
+  - styles/publication.css
+  - styles/syntax-theme.css
+source-of-truth: ../README.md
+status: publication-source-ready
+---

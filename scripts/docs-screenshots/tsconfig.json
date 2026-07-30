@@ -1,0 +1,11 @@
+{
+  "extends": "../../backend/tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["../../playwright.docs.config.ts", "./**/*.ts"]
+}

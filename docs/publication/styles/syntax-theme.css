@@ -1,0 +1,37 @@
+pre code {
+  color: #24202b;
+}
+
+.sourceCode .kw,
+.sourceCode .cf {
+  color: #6d4ab0;
+  font-weight: 600;
+}
+
+.sourceCode .dt,
+.sourceCode .at,
+.sourceCode .bu {
+  color: #315d8a;
+}
+
+.sourceCode .st,
+.sourceCode .vs {
+  color: #256b3c;
+}
+
+.sourceCode .co {
+  color: #77717f;
+  font-style: italic;
+}
+
+.sourceCode .dv,
+.sourceCode .fl,
+.sourceCode .bn {
+  color: #8a5b13;
+}
+
+.sourceCode .er,
+.sourceCode .al {
+  color: #9b2c2c;
+  font-weight: 700;
+}
