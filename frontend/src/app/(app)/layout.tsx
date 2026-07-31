@@ -22,9 +22,8 @@ export default async function ApplicationLayout({
   const preferences = await getServerPreferences();
 
   return (
-    <AppShell user={session.user}>
-      <PersistedTheme theme={preferences.theme} />
-      {children}
-    </AppShell>
+    <PersistedTheme theme={preferences.theme}>
+      <AppShell user={session.user}>{children}</AppShell>
+    </PersistedTheme>
   );
 }

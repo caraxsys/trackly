@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'next-themes';
 import { describe, expect, it, vi } from 'vitest';
 import { PreferenceForm } from '@/components/preferences/preference-form';
+import { PersistedTheme } from '@/components/preferences/persisted-theme';
 import { preferencePreview } from '@/lib/preference-format';
 import type { UserPreferences } from '@/types/preference';
 
@@ -22,7 +23,9 @@ const preferences: UserPreferences = {
 function renderForm() {
   return render(
     <ThemeProvider attribute="class" defaultTheme="system">
-      <PreferenceForm initialPreferences={preferences} />
+      <PersistedTheme theme={preferences.theme}>
+        <PreferenceForm initialPreferences={preferences} />
+      </PersistedTheme>
     </ThemeProvider>,
   );
 }
@@ -70,6 +73,7 @@ describe('PreferenceForm', () => {
       'role',
       'status',
     );
+    await waitFor(() => expect(document.documentElement).toHaveClass('dark'));
   });
 
   it('shows a safe retryable mutation error', async () => {
@@ -83,6 +87,7 @@ describe('PreferenceForm', () => {
       ),
     ).toHaveAttribute('role', 'alert');
     expect(screen.queryByText('raw error')).not.toBeInTheDocument();
+    expect(document.documentElement).not.toHaveClass('dark');
   });
 
   it('formats deterministic previews without local timezone dependence', () => {

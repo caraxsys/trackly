@@ -44,7 +44,6 @@ export function NotificationSettings() {
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState('');
   const operation = useRef(false);
-  const reconciled = useRef(false);
 
   async function reconcile(announce = false) {
     if (operation.current) return;
@@ -74,9 +73,34 @@ export function NotificationSettings() {
   }
 
   useEffect(() => {
-    if (reconciled.current) return;
-    reconciled.current = true;
-    void reconcile();
+    let active = true;
+
+    void reconcileWebPushState()
+      .then((result) => {
+        if (!active) return;
+        setState(result.state);
+        setMessage(result.message ?? '');
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) {
+          window.location.assign('/login');
+          return;
+        }
+        setState('disabled');
+        setMessage(
+          'Trackly could not synchronize this device. Please try again.',
+        );
+      })
+      .finally(() => {
+        if (!active) return;
+        operation.current = false;
+        setBusy(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function enable() {

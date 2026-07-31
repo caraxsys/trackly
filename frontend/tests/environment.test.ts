@@ -22,4 +22,17 @@ describe('public environment validation', () => {
       }).NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY,
     ).toBeUndefined();
   });
+
+  it.each(['', '   '])(
+    'normalizes blank optional Web Push configuration to missing',
+    (publicKey) => {
+      expect(
+        parsePublicEnvironment({
+          NEXT_PUBLIC_API_URL: 'http://localhost:4000',
+          NEXT_PUBLIC_AUTH_URL: 'http://localhost:4000',
+          NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: publicKey,
+        }).NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY,
+      ).toBeUndefined();
+    },
+  );
 });

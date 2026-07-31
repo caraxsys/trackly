@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotificationSettings } from '@/components/preferences/notification-settings';
@@ -39,6 +40,38 @@ describe('NotificationSettings', () => {
     expect(
       screen.getByRole('button', { name: 'Enable notifications' }),
     ).toBeEnabled();
+  });
+
+  it('completes initialization during the active Strict Mode effect pass', async () => {
+    let resolveFirst: ((value: { state: 'unsupported' }) => void) | undefined;
+    let resolveSecond: ((value: { state: 'disabled' }) => void) | undefined;
+    client.reconcileWebPushState
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    render(
+      <StrictMode>
+        <NotificationSettings />
+      </StrictMode>,
+    );
+
+    resolveFirst?.({ state: 'unsupported' });
+    expect(
+      screen.getByText('Checking notification status…'),
+    ).toBeInTheDocument();
+
+    resolveSecond?.({ state: 'disabled' });
+    expect(
+      await screen.findByText('Disabled on this device'),
+    ).toBeInTheDocument();
   });
 
   it('enables only after the explicit action and prevents duplicate clicks', async () => {

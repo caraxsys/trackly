@@ -155,6 +155,9 @@ describe('Web Push enable and reconciliation', () => {
       ...serialized,
       userAgent: navigator.userAgent,
     });
+    expect(context.requestPermission.mock.invocationCallOrder[0]).toBeLessThan(
+      context.register.mock.invocationCallOrder[0],
+    );
   });
 
   it('reuses and synchronizes an existing subscription', async () => {

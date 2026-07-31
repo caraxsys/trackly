@@ -1,10 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { usePersistedTheme } from '@/components/preferences/persisted-theme';
 import { preferenceFormSchema } from '@/features/preferences/preference-form-schema';
 import { preferencePreview } from '@/lib/preference-format';
 import { updatePreferences } from '@/services/preference-mutation-service';
@@ -27,7 +27,7 @@ export function PreferenceForm({
 }: {
   initialPreferences: UserPreferences;
 }) {
-  const { setTheme } = useTheme();
+  const { applyPersistedTheme } = usePersistedTheme();
   const [message, setMessage] = useState('');
   const {
     control,
@@ -55,7 +55,7 @@ export function PreferenceForm({
     try {
       const saved = await updatePreferences(input);
       reset(saved);
-      setTheme(saved.theme);
+      applyPersistedTheme(saved.theme);
       setMessage('Preferences saved.');
     } catch {
       setError('root', {

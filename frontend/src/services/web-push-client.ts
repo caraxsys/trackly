@@ -97,17 +97,17 @@ export async function enableWebPush(
   const support = detectWebPushSupport(publicKey);
   if (support.status !== 'supported') throw new Error(support.message);
   if (!publicKey) throw new Error('Web Push configuration is unavailable.');
-  if (Notification.permission === 'denied') {
+  if (window.Notification.permission === 'denied') {
     return { status: 'blocked' as const };
   }
 
-  const registration = await registerNotificationServiceWorker();
   const permission =
-    Notification.permission === 'default'
-      ? await Notification.requestPermission()
-      : Notification.permission;
+    window.Notification.permission === 'default'
+      ? await window.Notification.requestPermission()
+      : window.Notification.permission;
   if (permission !== 'granted') return { status: 'blocked' as const };
 
+  const registration = await registerNotificationServiceWorker();
   const existing = await registration.pushManager.getSubscription();
   const subscription =
     existing ??
@@ -136,8 +136,9 @@ export async function reconcileWebPushState(
   if (support.status !== 'supported') {
     return { state: support.status, message: support.message };
   }
-  if (Notification.permission === 'denied') return { state: 'blocked' };
-  if (Notification.permission !== 'granted') return { state: 'disabled' };
+  if (window.Notification.permission === 'denied') return { state: 'blocked' };
+  if (window.Notification.permission !== 'granted')
+    return { state: 'disabled' };
 
   const subscription = await getCurrentPushSubscription();
   if (!subscription) return { state: 'disabled' };

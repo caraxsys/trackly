@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+const optionalPublicValue = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().trim().min(1).optional(),
+);
+
 const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_API_URL: z.url(
     'NEXT_PUBLIC_API_URL must be a valid absolute URL',
@@ -7,7 +13,7 @@ const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_AUTH_URL: z.url(
     'NEXT_PUBLIC_AUTH_URL must be a valid absolute URL',
   ),
-  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: z.string().trim().min(1).optional(),
+  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: optionalPublicValue,
 });
 
 interface PublicEnvironmentInput {
